@@ -17,6 +17,8 @@ contract CardToken is ERC721Enumerable, Ownable, ReentrancyGuard {
 
     ///@dev card token info
     struct Card {
+        address owner;
+        uint256 id;
         string name;
         string grade;
         uint256 serial;
@@ -48,19 +50,25 @@ contract CardToken is ERC721Enumerable, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev mint card token to contract
+     * @dev mint card token to a recepient
      * @param to receipent address
      * @param name card token name
      * @param grade card token grade
-     * @param serial card token serial
+     * @param serial card token serial id (Psa indentifier)
      */
     function mint(address to, string memory name, string memory grade, uint256 serial) external payable nonReentrant {
+        require(to != address(0), "CardToken: invalid recepient address");
+        require(bytes(name).length != 0, "CardToken: invalid token name");
+        require(bytes(grade).length != 0, "CardToken: invalid token grade");
+        require(serial > 0, "CardToken: invalid serial id");
         require(isCardTokenExisted[serial] != true, "CardToken: existing card token");
 
         isCardTokenExisted[serial] = true;
 
         uint256 id = _totalSupply();
         cards[id] = Card(
+            to,  //will be owner of the token
+            id,  //token id
             name,
             grade,
             serial
@@ -71,6 +79,8 @@ contract CardToken is ERC721Enumerable, Ownable, ReentrancyGuard {
 
         emit Minted(to, name, grade, serial);
     }
+
+    
 
     /**
      * @dev Get `baseTokenURI`
