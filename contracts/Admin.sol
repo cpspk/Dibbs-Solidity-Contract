@@ -9,11 +9,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
-contract CardToken is ERC721Enumerable, Ownable, ReentrancyGuard {
+contract Admin is ERC721Enumerable, Ownable, ReentrancyGuard {
     using Counters for Counters.Counter;
 
     ///@dev card id tracker
     Counters.Counter private _cardIdTracker;
+
+    ///@dev dibbs admins
+    address public masterMinter;
 
     ///@dev card token info
     struct Card {
@@ -36,6 +39,9 @@ contract CardToken is ERC721Enumerable, Ownable, ReentrancyGuard {
     ///@dev mint event
     event Minted(address to, string name, string grade, uint256 serial);
 
+    ///@dev change master minter event
+    event MasterMinterChanged(address prevMinter, address newMinter);
+
     ///@dev constructor
     constructor(
       string memory _name,
@@ -46,6 +52,8 @@ contract CardToken is ERC721Enumerable, Ownable, ReentrancyGuard {
         Ownable()
         ReentrancyGuard()
     {
+        masterMinter = _msgSender();
+
         setBaseURI(baseURI);
     }
 
@@ -57,11 +65,12 @@ contract CardToken is ERC721Enumerable, Ownable, ReentrancyGuard {
      * @param serial card token serial id (Psa indentifier)
      */
     function mint(address to, string memory name, string memory grade, uint256 serial) external payable nonReentrant {
-        require(to != address(0), "CardToken: invalid recepient address");
-        require(bytes(name).length != 0, "CardToken: invalid token name");
-        require(bytes(grade).length != 0, "CardToken: invalid token grade");
-        require(serial > 0, "CardToken: invalid serial id");
-        require(isCardTokenExisted[serial] != true, "CardToken: existing card token");
+        require(getCurrentMinter() == _msgSender(), "Admin: Only dibbs can mint NFTs");
+        require(to != address(0), "Admin: invalid recepient address");
+        require(bytes(name).length != 0, "Admin: invalid token name");
+        require(bytes(grade).length != 0, "Admin: invalid token grade");
+        require(serial > 0, "Admin: invalid serial id");
+        require(isCardTokenExisted[serial] != true, "Admin: existing card token");
 
         isCardTokenExisted[serial] = true;
 
@@ -80,7 +89,15 @@ contract CardToken is ERC721Enumerable, Ownable, ReentrancyGuard {
         emit Minted(to, name, grade, serial);
     }
 
-    
+    function changeMasterMinter(address newMinter) external {
+        address prevMinter = masterMinter;
+        masterMinter = newMinter;
+        emit MasterMinterChanged(prevMinter, newMinter);
+    }    
+
+    function getCurrentMinter() internal view returns (address) {
+        return masterMinter;
+    }
 
     /**
      * @dev Get `baseTokenURI`

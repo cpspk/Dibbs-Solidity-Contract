@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.4;
 
-interface ICardToken {
+interface IAdmin {
 
     /**
      * @dev mint card token to contract
@@ -17,7 +17,5 @@ interface ICardToken {
         uint256 serial
     ) external payable;
 
-    function purchase(uint256 tokenId) external;
-    
-    function sell(uint256 tokenId) external;
+    function changeMasterMinter(address newMinter) external;
 }
