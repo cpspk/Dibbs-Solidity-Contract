@@ -11,17 +11,15 @@ describe("Admin", function() {
     this.Carl = Carl
 
     const Admin = await ethers.getContractFactory("Admin")
-    this.admin = await Admin.deploy("Admin", "AD", "https://Admin/");
+    this.admin = await Admin.deploy();
   })
 
   it("Deployment: should return right name and symbol", async () => {
     await this.admin.deployed()
-
-    expect(await this.admin.name()).to.equal("Admin")
-    expect(await this.admin.symbol()).to.equal("AD")
   })
 
   it("Mint succeeds: should mint a NFT on Alice's account", async () => {
+    await this.admin.initialize("https://dibbs/")
     await expect(this.admin.connect(this.masterMinter).mint(this.Alice.address, "Messi shot SPA10", "SPA10", 123))
       .emit(this.admin, "Minted")
       .withArgs(this.Alice.address, "Messi shot SPA10", "SPA10", 123)
