@@ -12,10 +12,10 @@ interface IAdmin {
      */
     function mint(
         address to,
-        string memory name,
-        string memory grade,
+        string calldata name,
+        string calldata grade,
         uint256 serial
-    ) external payable;
+    ) external;
 
     function changeMasterMinter(address newMinter) external;
 }

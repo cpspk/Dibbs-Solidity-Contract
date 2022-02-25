@@ -1,15 +1,13 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
-contract Admin is ERC721Enumerable, Ownable, ReentrancyGuard {
+contract Admin is ERC721Upgradeable, OwnableUpgradeable {
     using Counters for Counters.Counter;
 
     ///@dev card id tracker
@@ -42,20 +40,27 @@ contract Admin is ERC721Enumerable, Ownable, ReentrancyGuard {
     ///@dev change master minter event
     event MasterMinterChanged(address prevMinter, address newMinter);
 
-    ///@dev constructor
-    constructor(
-      string memory _name,
-      string memory _symbol,
-      string memory baseURI
-    )
-        ERC721(_name, _symbol)
-        Ownable()
-        ReentrancyGuard()
-    {
-        masterMinter = _msgSender();
+    // ///@dev constructor
+    // constructor(
+    //   string memory _name,
+    //   string memory _symbol,
+    //   string memory baseURI
+    // )
+    //     ERC721(_name, _symbol)
+    //     Ownable()
+    // {
+    //     masterMinter = _msgSender();
 
+    //     setBaseURI(baseURI);
+    // }
+
+    function initialize(string memory baseURI) initializer public {
+        __ERC721_init("Admin", "AD");
+        __Ownable_init();
+
+        masterMinter = _msgSender();
         setBaseURI(baseURI);
-    }
+     }
 
     /**
      * @dev mint card token to a recepient
@@ -64,7 +69,7 @@ contract Admin is ERC721Enumerable, Ownable, ReentrancyGuard {
      * @param grade card token grade
      * @param serial card token serial id (Psa indentifier)
      */
-    function mint(address to, string memory name, string memory grade, uint256 serial) external payable nonReentrant {
+    function mint(address to, string calldata name, string calldata grade, uint256 serial) external virtual {
         require(getCurrentMinter() == _msgSender(), "Admin: Only dibbs can mint NFTs");
         require(to != address(0), "Admin: invalid recepient address");
         require(bytes(name).length != 0, "Admin: invalid token name");
@@ -89,7 +94,7 @@ contract Admin is ERC721Enumerable, Ownable, ReentrancyGuard {
         emit Minted(to, name, grade, serial);
     }
 
-    function changeMasterMinter(address newMinter) external {
+    function changeMasterMinter(address newMinter) onlyOwner external {
         address prevMinter = masterMinter;
         masterMinter = newMinter;
         emit MasterMinterChanged(prevMinter, newMinter);
