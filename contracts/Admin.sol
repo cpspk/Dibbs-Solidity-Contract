@@ -94,7 +94,7 @@ contract Admin is ERC721Upgradeable, OwnableUpgradeable {
         emit Minted(to, name, grade, serial);
     }
 
-    function changeMasterMinter(address newMinter) onlyOwner external {
+    function changeMasterMinter(address newMinter) external virtual onlyOwner {
         address prevMinter = masterMinter;
         masterMinter = newMinter;
         emit MasterMinterChanged(prevMinter, newMinter);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
-import "../utils/ownable.sol";
+import "../Ownable.sol";
 
 contract LogicV1 is Ownable {
     uint public data;

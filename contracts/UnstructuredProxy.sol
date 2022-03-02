@@ -8,11 +8,11 @@ contract UnstructuredProxy is Proxy {
     
     // Storage position of the address of the current implementation
     bytes32 private constant implementationPosition = 
-        keccak256("org.smartdefi.implementation.address");
+        keccak256("");
     
     // Storage position of the owner of the contract
     bytes32 private constant proxyOwnerPosition = 
-        keccak256("org.smartdefi.proxy.owner");
+        keccak256("");
     
     /**
     * @dev Throws if called by any account other than the owner.
