@@ -52,5 +52,31 @@ describe("Proxy", function () {
     ProxyUpgraded = new ethers.Contract(proxy.address, abiV2, ethers.getDefaultProvider());
     proxyUpgraded = await ProxyUpgraded.connect(alice)
     proxyUpgraded.initialize()
+
+    // check ownable
+    const proxyUpgradedWithBob = await ProxyUpgraded.connect(bob)
+    await expect(proxyUpgradedWithBob.setAnotherData(3))
+      .to.be.revertedWith("Ownable: caller is not the owner")
+    proxyUpgraded.setAnotherData(3)
+
+    // check transfer ownership of logic contract
+
+    const proxyUpgradedWithCarl = await ProxyUpgraded.connect(carl)
+    await proxyUpgraded.transferOwnership(carl.address)
+    await proxyUpgradedWithCarl.setAnotherData(3);
+
+    // check renounce ownership
+    await proxyUpgradedWithCarl.renounceOwnership()
+    await expect(proxyUpgradedWithCarl.setAnotherData(3))
+      .to.be.revertedWith('Ownable: caller is not the owner')
+
+    // check if storage is kept after upgrade
+
+    expect(await proxyUpgraded.data()).to.equal(3);
+
+    // check new work flow in the upgraded contract
+    
+    await proxyUpgraded.set(4);
+    expect(await proxyUpgraded.data()).to.equal(4 * 4);
   })
 })

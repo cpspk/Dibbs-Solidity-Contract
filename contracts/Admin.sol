@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
@@ -19,7 +18,6 @@ contract Admin is ERC721Upgradeable, OwnableUpgradeable {
     ///@dev card token info
     struct Card {
         address owner;
-        uint256 id;
         string name;
         string grade;
         uint256 serial;
@@ -64,14 +62,14 @@ contract Admin is ERC721Upgradeable, OwnableUpgradeable {
 
     /**
      * @dev mint card token to a recepient
-     * @param to receipent address
+     * @param owner receipent address
      * @param name card token name
      * @param grade card token grade
      * @param serial card token serial id (Psa indentifier)
      */
-    function mint(address to, string calldata name, string calldata grade, uint256 serial) external virtual {
+    function mint(address owner, string calldata name, string calldata grade, uint256 serial) external virtual {
         require(getCurrentMinter() == _msgSender(), "Admin: Only dibbs can mint NFTs");
-        require(to != address(0), "Admin: invalid recepient address");
+        require(owner != address(0), "Admin: invalid recepient address");
         require(bytes(name).length != 0, "Admin: invalid token name");
         require(bytes(grade).length != 0, "Admin: invalid token grade");
         require(serial > 0, "Admin: invalid serial id");
@@ -81,20 +79,21 @@ contract Admin is ERC721Upgradeable, OwnableUpgradeable {
 
         uint256 id = _totalSupply();
         cards[id] = Card(
-            to,  //will be owner of the token
-            id,  //token id
+            owner,  //will be owner of the token
             name,
             grade,
             serial
         );
 
-        _safeMint(to, id);
+        _safeMint(owner, id);
         _cardIdTracker.increment();
 
-        emit Minted(to, name, grade, serial);
+        emit Minted(owner, name, grade, serial);
     }
 
     function changeMasterMinter(address newMinter) external virtual onlyOwner {
+        require(newMinter != address(0), "Admin: invalid address");
+
         address prevMinter = masterMinter;
         masterMinter = newMinter;
         emit MasterMinterChanged(prevMinter, newMinter);

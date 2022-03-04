@@ -8,11 +8,11 @@ contract UnstructuredProxy is Proxy {
     
     // Storage position of the address of the current implementation
     bytes32 private constant implementationPosition = 
-        keccak256("");
+        keccak256("org.dibbs.implementation.address");
     
     // Storage position of the owner of the contract
     bytes32 private constant proxyOwnerPosition = 
-        keccak256("");
+        keccak256("org.dibbs.proxy.owner");
     
     /**
     * @dev Throws if called by any account other than the owner.
