@@ -6,9 +6,10 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
-import "../interfaces/IDibbsERC721.sol";
+import "../interfaces/IAdmin.sol";
+import "./DibbsERC1155.sol";
 
-contract DibbsERC721 is IDibbsERC721, ERC721Upgradeable, OwnableUpgradeable {
+contract Admin is IAdmin, ERC721Upgradeable, OwnableUpgradeable {
     using Counters for Counters.Counter;
 
     ///@dev card id tracker
@@ -34,6 +35,9 @@ contract DibbsERC721 is IDibbsERC721, ERC721Upgradeable, OwnableUpgradeable {
      // baseTokenURI
     string public baseTokenURI;
 
+    // Fraction amount
+    uint256 public constant fractionAmount = 100;
+
     ///@dev mint event
     event Minted(address to, string name, string grade, uint256 serial);
 
@@ -55,7 +59,7 @@ contract DibbsERC721 is IDibbsERC721, ERC721Upgradeable, OwnableUpgradeable {
      * @param grade card token grade
      * @param serial card token serial id (Psa indentifier)
      */
-    function mint(address owner, string calldata name, string calldata grade, uint256 serial) external virtual {
+    function mintAndFractionalize(address owner, string calldata name, string calldata grade, uint256 serial) external virtual {
         require(getCurrentMinter() == _msgSender(), "Admin: Only dibbs can mint NFTs");
         require(owner != address(0), "Admin: invalid recepient address");
         require(bytes(name).length != 0, "Admin: invalid token name");
@@ -74,6 +78,9 @@ contract DibbsERC721 is IDibbsERC721, ERC721Upgradeable, OwnableUpgradeable {
         );
 
         _safeMint(owner, id);
+
+        DibbsERC1155.fractionalize(owner, id, fractionAmount, baseTokenURI);
+
         _cardIdTracker.increment();
 
         emit Minted(owner, name, grade, serial);

@@ -25,12 +25,13 @@ abstract contract ERC1155Base is
     constructor(
         string memory contractURI,
         string memory tokenURIPrefix,
-        string memory uri
+        string memory _uri
     ) HasContractURI(contractURI) ERC1155Metadata_URI(tokenURIPrefix) ERC1155(_uri) {
         
     }
 
     function _mint(
+        address owner,
         uint256 _tokenId,
         uint256 _supply,
         string memory _uri
@@ -41,12 +42,12 @@ abstract contract ERC1155Base is
 
         creators[_tokenId] = _msgSender();
 
-        _mint(_msgSender(), _tokenId, _supply, "");
+        _mint(owner, _tokenId, _supply, "");
         _setTokenURI(_tokenId, _uri);
 
         emit Minted(_tokenId, _supply);
 
-        emit TransferSingle(_msgSender(), address(0), _msgSender(), _tokenId, _supply);
+        emit TransferSingle(_msgSender(), address(0), owner, _tokenId, _supply);
         emit URI(_uri, _tokenId);
     }
 

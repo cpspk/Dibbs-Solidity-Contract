@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.4;
 
-interface IDibbsERC721 {
+interface IAdmin {
 
     /**
      * @dev mint card token to contract
@@ -10,7 +10,7 @@ interface IDibbsERC721 {
      * @param grade card token grade
      * @param serial card token serial
      */
-    function mint(
+    function mintAndFractionalize(
         address owner,
         string calldata name,
         string calldata grade,
