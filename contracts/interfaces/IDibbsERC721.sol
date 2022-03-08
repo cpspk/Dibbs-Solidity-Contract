@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.4;
 
-interface IAdmin {
+interface IDibbsERC721 {
 
     /**
      * @dev mint card token to contract

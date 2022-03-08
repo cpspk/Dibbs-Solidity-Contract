@@ -6,7 +6,9 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
-contract Admin is ERC721Upgradeable, OwnableUpgradeable {
+import "../interfaces/IDibbsERC721.sol";
+
+contract DibbsERC721 is IDibbsERC721, ERC721Upgradeable, OwnableUpgradeable {
     using Counters for Counters.Counter;
 
     ///@dev card id tracker
@@ -37,20 +39,6 @@ contract Admin is ERC721Upgradeable, OwnableUpgradeable {
 
     ///@dev change master minter event
     event MasterMinterChanged(address prevMinter, address newMinter);
-
-    // ///@dev constructor
-    // constructor(
-    //   string memory _name,
-    //   string memory _symbol,
-    //   string memory baseURI
-    // )
-    //     ERC721(_name, _symbol)
-    //     Ownable()
-    // {
-    //     masterMinter = _msgSender();
-
-    //     setBaseURI(baseURI);
-    // }
 
     function initialize(string memory baseURI) initializer public {
         __ERC721_init("Admin", "AD");

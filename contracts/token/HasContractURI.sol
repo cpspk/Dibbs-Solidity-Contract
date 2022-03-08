@@ -1,0 +1,23 @@
+pragma solidity ^0.8.4;
+// SPDX-License-Identifier: UNLICENSED
+
+import "@openzeppelin/contracts/utils/introspection/ERC165Storage.sol";
+
+contract HasContractURI is ERC165Storage {
+    string public contractURI;
+
+    bytes4 private constant _INTERFACE_ID_CONTRACT_URI = 0xe8a3d485;
+
+    constructor(string memory _contractURI) {
+        contractURI = _contractURI;
+        _registerInterface(_INTERFACE_ID_CONTRACT_URI);
+    }
+
+    /**
+     * @dev Internal function to set the contract URI
+     * @param _contractURI string URI prefix to assign
+     */
+    function _setContentURI(string memory _contractURI) internal {
+        contractURI = _contractURI;
+    }
+}
