@@ -7,13 +7,15 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
 import "../interfaces/IAdmin.sol";
-import "./DibbsERC1155.sol";
+import "../interfaces/IDibbsERC1155.sol";
 
 contract Admin is IAdmin, ERC721Upgradeable, OwnableUpgradeable {
     using Counters for Counters.Counter;
 
     ///@dev card id tracker
     Counters.Counter private _cardIdTracker;
+
+    IDibbsERC1155 public dibbsERC1155;
 
     ///@dev dibbs admins
     address public masterMinter;
@@ -44,10 +46,14 @@ contract Admin is IAdmin, ERC721Upgradeable, OwnableUpgradeable {
     ///@dev change master minter event
     event MasterMinterChanged(address prevMinter, address newMinter);
 
-    function initialize(string memory baseURI) initializer public {
+    function initialize(
+        IDibbsERC1155 _dibbsERC1155,
+        string memory baseURI
+    ) initializer public {
         __ERC721_init("Admin", "AD");
         __Ownable_init();
 
+        dibbsERC1155 = _dibbsERC1155;
         masterMinter = _msgSender();
         setBaseURI(baseURI);
      }
@@ -59,7 +65,7 @@ contract Admin is IAdmin, ERC721Upgradeable, OwnableUpgradeable {
      * @param grade card token grade
      * @param serial card token serial id (Psa indentifier)
      */
-    function mintAndFractionalize(address owner, string calldata name, string calldata grade, uint256 serial) external virtual {
+    function mintAndFractionalize(address owner, string calldata name, string calldata grade, uint256 serial) external override virtual {
         require(getCurrentMinter() == _msgSender(), "Admin: Only dibbs can mint NFTs");
         require(owner != address(0), "Admin: invalid recepient address");
         require(bytes(name).length != 0, "Admin: invalid token name");
@@ -79,14 +85,14 @@ contract Admin is IAdmin, ERC721Upgradeable, OwnableUpgradeable {
 
         _safeMint(owner, id);
 
-        DibbsERC1155.fractionalize(owner, id, fractionAmount, baseTokenURI);
+        dibbsERC1155.fractionalize(owner, id, fractionAmount, baseTokenURI);
 
         _cardIdTracker.increment();
 
         emit Minted(owner, name, grade, serial);
     }
 
-    function changeMasterMinter(address newMinter) external virtual onlyOwner {
+    function changeMasterMinter(address newMinter) external virtual override onlyOwner {
         require(newMinter != address(0), "Admin: invalid address");
 
         address prevMinter = masterMinter;

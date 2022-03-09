@@ -17,7 +17,7 @@ contract HasContractURI is ERC165Storage {
      * @dev Internal function to set the contract URI
      * @param _contractURI string URI prefix to assign
      */
-    function _setContentURI(string memory _contractURI) internal {
+    function _setContractURI(string memory _contractURI) internal {
         contractURI = _contractURI;
     }
 }

@@ -10,9 +10,9 @@ contract HasTokenURI {
     string public tokenURIPrefix;
 
     // Optional mapping for token URIs
-    mapping(uint256 => string) private _tokenURI;
+    mapping(uint256 => string) private _tokenURIs;
 
-    constructor(string memory _tokenURIPrefix)  {
+    constructor(string memory _tokenURIPrefix) {
         tokenURIPrefix = _tokenURIPrefix;
     }
 

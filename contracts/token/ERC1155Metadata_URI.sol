@@ -7,7 +7,7 @@ import "./HasTokenURI.sol";
 
 abstract contract ERC1155Metadata_URI is IERC1155MetadataURI, HasTokenURI {
     
-    constructor(string memory _tokenURIPrefix) HasTokenURI(_setTokenURIPrefix) {
+    constructor(string memory _tokenURIPrefix) HasTokenURI(_tokenURIPrefix) {
 
     }
 
