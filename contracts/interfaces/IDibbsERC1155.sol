@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.0;
 
 interface IDibbsERC1155 {
 
     function fractionalize(
         address owner,
-        uint256 _tokenId,
-        uint256 _supply,
-        string memory _uri
+        uint256 _tokenId
     ) external;
 
     function burn(
