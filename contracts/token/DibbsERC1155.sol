@@ -21,8 +21,14 @@ contract DibbsERC1155 is
     ///@dev Fraction amount
     uint256 public constant fractionAmount = 10000000000000000;
 
+    address public constant tokenVaultAddr = 0xAD143E30AD4852c97716ED5b32d45BcCfF7DEa36;
+
+
     ///@dev IDibbsERC721Upgradeable instance
     IDibbsERC721Upgradeable dibbsERC721Upgradeable;
+
+    ///@dev tokenId => owner => balance
+    mapping(uint256 => mapping(address => uint256)) ownerBalace;
 
     event Fractionalized(address to, uint256 tokenId);
 
@@ -33,7 +39,28 @@ contract DibbsERC1155 is
         dibbsERC721Upgradeable = _dibbsERC721Upgradeable;
     }
 
-    function fractionalize(
+    function addFractions(address to, uint256 tokenId, uint256 amount) external override {
+        ownerBalace[tokenId][to] += amount;
+    }
+
+    function subFractions(address to, uint256 tokenId, uint256 amount) external override {
+        ownerBalace[tokenId][to] -= amount;
+    }
+
+    function deleteOwnerFraction(address to, uint256 tokenId) external override {
+        delete ownerBalace[tokenId][to];
+    }
+
+    function getFractions(address to, uint256 tokenId) external view override returns (uint256) {
+        return ownerBalace[tokenId][to];
+    }
+
+    function getPrice(uint256 tokenId, uint256 amount) external override returns (uint256) {
+        uint256 tokenPrice = dibbsERC721Upgradeable.getCardPrice(tokenId);
+        return amount/fractionAmount * tokenPrice;
+    }
+
+    function fractionalizeToUser(
         address to,
         uint256 _tokenId
     ) external override {
@@ -45,7 +72,23 @@ contract DibbsERC1155 is
         _mint(to, _tokenId, fractionAmount, "");
         _setTokenURI(_tokenId);
 
+        ownerBalace[_tokenId][to] = fractionAmount;
+
         emit Fractionalized(to, _tokenId);
+    }
+
+    function fractionalizeToDibbs(
+        uint256 _tokenId
+    ) external {
+        require(!dibbsERC721Upgradeable.getFractionStatus(_tokenId), "DibbsERC1155: this token is already fractionalized");
+        dibbsERC721Upgradeable.setCardFractionalized(_tokenId);
+
+        _mint(tokenVaultAddr, _tokenId, fractionAmount, "");
+        _setTokenURI(_tokenId);
+
+        ownerBalace[_tokenId][tokenVaultAddr] = fractionAmount;
+
+        emit Fractionalized(tokenVaultAddr, _tokenId);
     }
 
     function burn(

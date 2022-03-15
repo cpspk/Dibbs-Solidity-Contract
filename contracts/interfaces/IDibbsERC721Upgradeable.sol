@@ -6,31 +6,49 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol"
 interface IDibbsERC721Upgradeable is IERC721Upgradeable {
 
     function cards(uint256 id) external returns (
-        address,
         string calldata,
         string calldata,
         uint256,
-        bool,
-        uint256
+        uint256,
+        bool
     );
+    function setCard(string calldata name, string calldata grade, uint256 serial, uint256 price, uint256 id) external;
 
     function setCardFractionalized(uint256 id) external;
 
     function getFractionStatus(uint256 id) external returns (bool);
 
+    function getCardPrice(uint256 id) external returns (uint256);
+
     /**
-     * @dev mint card token to a recepient~
-     * @param owner receipent address
+     * @dev mint card token to a recepient
      * @param name card token name
      * @param grade card token grade
      * @param serial card token serial id (Psa indentifier)
+     * @param price card token price
      */
-    function mint(
-        address owner,
+    function mintToDibbs(
         string calldata name,
         string calldata grade,
-        uint256 serial
+        uint256 serial,
+        uint256 price
     ) external;
+
+     /**
+     * @dev mint card token to a recepient
+     * @param originalOwner original token owner
+     * @param name card token name
+     * @param grade card token grade
+     * @param serial card token serial id (Psa indentifier)
+     * @param price card token price
+     */
+    function mintToDibbsPayable(
+        address originalOwner,
+        string calldata name,
+        string calldata grade,
+        uint256 serial,
+        uint256 price
+    ) external payable;
 
     // /**
     //  * @dev register existing token

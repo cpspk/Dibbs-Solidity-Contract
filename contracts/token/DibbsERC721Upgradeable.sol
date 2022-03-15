@@ -15,14 +15,15 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, I
     ///@dev card id tracker
     Counters.Counter private _tokenIdTracker;
 
+    address public constant tokenVaultAddr = 0xAD143E30AD4852c97716ED5b32d45BcCfF7DEa36;
+
     ///@dev card token info
     struct Card {
-        address owner;
         string name;
         string grade;
         uint256 serial;
+        uint256 price;
         bool fractionalized;
-        uint256 fractionBalance;
     }
 
     ///@dev id => card token
@@ -44,7 +45,7 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, I
     event MasterMinterChanged(address prevMinter, address newMinter);
 
     ///@dev mint event
-    event Minted(address to, string name, string grade, uint256 serial, uint256 id);
+    event Minted(string name, string grade, uint256 serial, uint256 id);
 
     ///@dev register event
     event Registered(address from, address to, uint256 id);
@@ -79,6 +80,10 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, I
         return cards[id].fractionalized;
     }
 
+    function getCardPrice(uint256 id) external override view returns (uint256) {
+        return cards[id].price;
+    }
+
     /**
      * @dev (To be called externally) setter function: set card balance as a initial amount and fractionalized true when card is fractionalized
      * @param id the token id
@@ -86,56 +91,56 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, I
     function setCardFractionalized(uint256 id) external override onlyValidToken(id) {
         Card storage card = cards[id];
         card.fractionalized = true;
-        card.fractionBalance = fractionAmount;
     }
 
-    function setCard(address owner, string calldata name, string calldata grade, uint256 serial, uint256 id) internal {
+    function setCard(string calldata name, string calldata grade, uint256 serial, uint256 price, uint256 id) public override {
+        require(isCardTokenExisted[serial] != true, "DibbsERC721Upgradeable: existing card token");
+
+        isCardTokenExisted[serial] = true;
         cards[id] = Card(
-            owner,  //will be owner of the token
             name,
             grade,
             serial,
-            false,
-            0
+            price,
+            false
         );
     }
 
     /**
      * @dev mint card token to a recepient
-     * @param owner receipent address: ** Even if owner is contract, owner address should be passed manually. 
      * @param name card token name
      * @param grade card token grade
      * @param serial card token serial id (Psa indentifier)
      */
-    function mint(
-        address owner, //TODO specify onwer, currently all tokens are minted to this contract.
+    function mintToDibbs(
         string calldata name,
         string calldata grade,
-        uint256 serial
+        uint256 serial,
+        uint256 price
     ) external override virtual {
         require(getCurrentMinter() == _msgSender(), "DibbsERC721Upgradeable: Only dibbs can mint NFTs");
-        require(owner != address(0), "DibbsERC721Upgradeable: invalid recepient address");
         require(bytes(name).length != 0, "DibbsERC721Upgradeable: invalid token name");
         require(bytes(grade).length != 0, "DibbsERC721Upgradeable: invalid token grade");
         require(serial > 0, "DibbsERC721Upgradeable: invalid serial id");
+        require(price > 0, "DibbsERC721Upgradeable: invalid token price");
         require(isCardTokenExisted[serial] != true, "DibbsERC721Upgradeable: existing card token");
-        
+
         isCardTokenExisted[serial] = true;
 
-        uint256 id = _tokenIdTracker.current();
-        setCard(
-            owner,  //will be owner of the token
+        uint256 id = totalSupply();
+        cards[id] = Card(
             name,
             grade,
             serial,
-            id
+            price,
+            false
         );
 
-        uint256 ownerBalanceBefore = balanceOf(owner);
+        uint256 ownerBalanceBefore = balanceOf(tokenVaultAddr);
 
-        _safeMint(owner, id);
+        _safeMint(tokenVaultAddr, id);
 
-        uint256 ownerBalanceAfter = balanceOf(owner);
+        uint256 ownerBalanceAfter = balanceOf(tokenVaultAddr);
 
         _tokenIdTracker.increment();
 
@@ -144,7 +149,61 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, I
             "DibbsERC721Upgradeable: token minting didn't work properly"
         );
 
-        emit Minted(owner, name, grade, serial, id);
+        emit Minted(name, grade, serial, id);
+    }
+
+    /**
+     * @dev mint card token to a recepient
+     * @param originalOwner original token owner
+     * @param name card token name
+     * @param grade card token grade
+     * @param serial card token serial id (Psa indentifier)
+     * @param price card token price
+     */
+    function mintToDibbsPayable(
+        address originalOwner,
+        string calldata name,
+        string calldata grade,
+        uint256 serial,
+        uint256 price
+    ) external payable {
+        require(getCurrentMinter() == _msgSender(), "DibbsERC721Upgradeable: Only dibbs can mint NFTs");
+        require(bytes(name).length != 0, "DibbsERC721Upgradeable: invalid token name");
+        require(bytes(grade).length != 0, "DibbsERC721Upgradeable: invalid token grade");
+        require(serial > 0, "DibbsERC721Upgradeable: invalid serial id");
+        require(msg.value >= price, "DibbsERC721Upgradeable: not enough token price");
+        require(isCardTokenExisted[serial] != true, "DibbsERC721Upgradeable: existing card token");
+
+        isCardTokenExisted[serial] = true;
+
+        uint256 id = totalSupply();
+        cards[id] = Card(
+            name,
+            grade,
+            serial,
+            price,
+            false
+        );
+
+        if (msg.value > price) {
+            (bool sent, ) = payable(originalOwner).call{value: msg.value - price}("");
+            require(sent, "DibbsERC721Upgradeable: Change transfer failed");
+        }
+
+        uint256 ownerBalanceBefore = balanceOf(tokenVaultAddr);
+
+        _safeMint(tokenVaultAddr, id);
+
+        uint256 ownerBalanceAfter = balanceOf(tokenVaultAddr);
+
+        _tokenIdTracker.increment();
+
+        require(
+            (ownerBalanceAfter - ownerBalanceBefore) == 1,
+            "DibbsERC721Upgradeable: token minting didn't work properly"
+        );
+
+        emit Minted(name, grade, serial, id);
     }
 
     // /**
@@ -212,6 +271,10 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, I
 
     function getCurrentMinter() internal view returns (address) {
         return masterMinter;
+    }
+
+    function totalSupply() public view returns (uint256) {
+        return _tokenIdTracker.current();
     }
 
     /**
