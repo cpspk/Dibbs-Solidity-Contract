@@ -1,5 +1,6 @@
 const { expect } = require("chai")
-const {ethers} = require("hardhat")
+const { ethers } = require("hardhat")
+const { BN } = require("web3-utils");
 
 describe("DibbsERC721Upgradeable", function() {
   before(async () => {
@@ -10,16 +11,11 @@ describe("DibbsERC721Upgradeable", function() {
     this.Bob = Bob
     this.Carl = Carl
     this.tokenIds = [0, 1, 2, 3]
+    this.nftPrice = ethers.utils.parseEther("0.06")
+    this.additional = ethers.utils.parseEther("0.00000000000000001")
 
     const DibbsERC721Upgradeable = await ethers.getContractFactory("DibbsERC721Upgradeable")
     this.dibbsERC721Upgradeable = await DibbsERC721Upgradeable.deploy();
-
-    const MockNFT = await ethers.getContractFactory('MockNFT')
-    this.mockNFT = await MockNFT.deploy()
-
-    await this.mockNFT.connect(this.masterMinter).mint(this.Alice.address, 0)
-    await this.mockNFT.connect(this.masterMinter).mint(this.Alice.address, 1)
-    await this.mockNFT.connect(this.masterMinter).mint(this.Bob.address, 2)
   })
 
   it("Deployment: initialize Admin contract", async () => {
@@ -30,66 +26,135 @@ describe("DibbsERC721Upgradeable", function() {
     await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).setCardFractionalized(this.tokenIds[0]))
       .to.revertedWith("DibbsERC721Upgradeable: invalid card token id")
   })
-  
-  it("Mint succeeds: should mint a NFT on Alice's account", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mint(this.Alice.address, "Messi shot SPA10", "SPA10", 123))
+
+  it("Mint fails: Only dibbs can mint NFTs", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).mintToDibbs("Messi shot SPA10", "SPA10", 123, this.nftPrice))
+    .to.revertedWith("DibbsERC721Upgradeable: Only dibbs can mint NFTs")
+  })
+
+  it("Mint succeeds: should mint a NFT on Dibbs account", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mintToDibbs("Messi shot SPA10", "SPA10", 123, this.nftPrice))
     .emit(this.dibbsERC721Upgradeable, "Minted")
-    .withArgs(this.Alice.address, "Messi shot SPA10", "SPA10", 123, this.tokenIds[0])
+    .withArgs("Messi shot SPA10", "SPA10", 123, this.tokenIds[0])
   })
 
   it("Setting card fractionalized succeeds", async () => {
     await this.dibbsERC721Upgradeable.connect(this.masterMinter).setCardFractionalized(this.tokenIds[0])
   })
   
-  it("Mint succeeds: should mint a NFT on Bob's account", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mint(this.Bob.address, "Messi shot SPA10", "SPA10", 124))
+  it("Mint succeeds: should mint a NFT on Dibbs account", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mintToDibbs("Messi shot SPA10", "SPA10", 124, this.nftPrice))
       .emit(this.dibbsERC721Upgradeable, "Minted")
-      .withArgs(this.Bob.address, "Messi shot SPA10", "SPA10", 124, this.tokenIds[1])
+      .withArgs("Messi shot SPA10", "SPA10", 124, this.tokenIds[1])
   })
   
-  it("Mint succeeds: should mint one another NFT on Bob's account", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mint(this.Bob.address, "Messi shot SPA10", "SPA10", 125))
+  it("Mint succeeds: should mint one another NFT on Dibbs account", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mintToDibbs("Messi shot SPA10", "SPA10", 125, this.nftPrice))
       .emit(this.dibbsERC721Upgradeable, "Minted")
-      .withArgs(this.Bob.address, "Messi shot SPA10", "SPA10", 125, this.tokenIds[2])
+      .withArgs("Messi shot SPA10", "SPA10", 125, this.tokenIds[2])
   })
 
   it("Mint fails: should not mint the existing NFT on Alice's account", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mint(this.Alice.address, "Messi shot SPA10", "SPA10", 123))
+    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mintToDibbs("Messi shot SPA10", "SPA10", 123, this.nftPrice))
       .to.revertedWith("DibbsERC721Upgradeable: existing card token")
   })
 
-  it("Mint fails: should not mint on invalid address", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mint(ethers.constants.AddressZero, "Messi shot SPA10", "SPA10", 1223))
-      .to.revertedWith("DibbsERC721Upgradeable: invalid recepient address")
+  it("Mint fails: invalid price", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mintToDibbs("Messi shot SPA10", "SPA10", 1223, 0))
+      .to.revertedWith("DibbsERC721Upgradeable: invalid token price")
   })
 
   it("Mint fails: should not mint card token without name", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mint(this.Alice.address, "", "SPA10", 2123))
+    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mintToDibbs("", "SPA10", 2123, this.nftPrice))
       .to.revertedWith("DibbsERC721Upgradeable: invalid token name")
   })
 
   it("Mint fails: should not mint card token without grade", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mint(this.Alice.address, "Messi shot SPA10", "", 2123))
+    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mintToDibbs("Messi shot SPA10", "", 2123, this.nftPrice))
       .to.revertedWith("DibbsERC721Upgradeable: invalid token grade")
   })
 
-  // it("Register fails: only token owner can transfer it", async () => {
-  //   await expect(this.dibbsERC721Upgradeable.connect(this.Alice).register(
-  //     this.tokenIds[2],
-  //     "Messi shot SPA10",
-  //     "SPA10",
-  //     124
-  //   )).to.revertedWith("DibbsERC721Upgradeable: caller is not the owner")
-  // })
+  it("Payable mint succeeds: should mint a NFT on Dibbs account with Alice", async () => {
+    // const balanceBefore = await this.Alice.getBalance()
+    // console.log(balanceBefore.toString())
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).mintToDibbsPayable(
+      "Messi shot SPA10",
+      "SPA10",
+      456,
+      this.nftPrice,
+      { value: this.nftPrice + this.additional }
+    ))
+    .emit(this.dibbsERC721Upgradeable, "Minted")
+    .withArgs("Messi shot SPA10", "SPA10", 456, this.tokenIds[3])
+    
+    const balanceAfter = await this.Alice.getBalance()
 
-  // it("Register succeeds", async () => {
-  //   await this.dibbsERC721Upgradeable.connect(this.Alice).approve(this.dibbsERC721Upgradeable.address, this.tokenIds[0])
-  //   await expect(this.dibbsERC721Upgradeable.connect(this.Alice).register(
-  //     this.tokenIds[0],
-  //     "Messi shot SPA10",
-  //     "SPA10",
-  //     124
-  //   )).emit(this.dibbsERC721Upgradeable, "Registered")
-  //     .withArgs(this.Alice.address, this.dibbsERC721Upgradeable.address, this.tokenIds[0])
-  // })
+    // expect (balanceBefore - balanceAfter).to.equal(this.nftPrice + this.additional)
+    // console.log(balanceAfter.toString())
+  })
+
+  it("Payable mint fails: Only user can mint NFTs receiving payments", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.masterMinter).mintToDibbsPayable(
+      "Messi shot SPA10",
+      "SPA10",
+      467,
+      this.nftPrice,
+      { value: this.nftPrice + this.additional }
+    ))
+    .to.revertedWith("DibbsERC721Upgradeable: Dibbs shouldn't call payalble mint function")
+  })
+
+  it("Payable mint fails: token should have valid name", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).mintToDibbsPayable(
+      "",
+      "SPA10",
+      467,
+      this.nftPrice,
+      { value: this.nftPrice + this.additional }
+    ))
+    .to.revertedWith("DibbsERC721Upgradeable: invalid token name")
+  })
+
+  it("Payable mint fails: token should have valid grade", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).mintToDibbsPayable(
+      "Messi shot SPA10",
+      "",
+      467,
+      this.nftPrice,
+      { value: this.nftPrice + this.additional }
+    ))
+    .to.revertedWith("DibbsERC721Upgradeable: invalid token grade")
+  })
+
+  it("Payable mint fails: token should have valid grade", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).mintToDibbsPayable(
+      "Messi shot SPA10",
+      "SPA10",
+      0,
+      this.nftPrice,
+      { value: this.nftPrice + this.additional }
+    ))
+    .to.revertedWith("DibbsERC721Upgradeable: invalid serial id")
+  })
+
+  it("Payable mint fails: payment should be greater than or equal to token price", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).mintToDibbsPayable(
+      "Messi shot SPA10",
+      "SPA10",
+      799,
+      this.nftPrice,
+      { value: this.additional }
+    ))
+    .to.revertedWith("DibbsERC721Upgradeable: not enough token price")
+  })
+
+  it("Payable mint fails: should mint a NFT on Dibbs account with Alice", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).mintToDibbsPayable(
+      "Messi shot SPA10",
+      "SPA10",
+      456,
+      this.nftPrice,
+      { value: this.nftPrice + this.additional }
+    )).to.revertedWith("DibbsERC721Upgradeable: existing card token")
+  })
 })

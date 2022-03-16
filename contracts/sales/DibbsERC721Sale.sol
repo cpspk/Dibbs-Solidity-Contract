@@ -4,18 +4,12 @@ pragma solidity ^0.8.4;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "../proxy/TransferProxy.sol";
-import "./ERC721SaleNonceHolder.sol";
 import "../interfaces/IDibbsERC721Upgradeable.sol";
 
 contract DibbsERC721Sale is ReentrancyGuard, Ownable {
-    using SafeMath for uint256;
-    using ECDSA for bytes32;
-
     event SentToDibbs(
         string name,
         string grade,
@@ -23,25 +17,31 @@ contract DibbsERC721Sale is ReentrancyGuard, Ownable {
         uint256 id
     );
 
-    bytes constant EMPTY = "";
+    event Purchased(
+        address owner,
+        uint256 tokenId
+    );
+
+    ///@dev dibbs vault address (Currently using Metamask address)
     address public constant tokenVaultAddr = 0xAD143E30AD4852c97716ED5b32d45BcCfF7DEa36;
 
+    ///@dev master minter
+    address public masterMinter;
+
     TransferProxy public transferProxy;
-    ERC721SaleNonceHolder public nonceHolder;
     IDibbsERC721Upgradeable public dibbsERC721Upgradeable;
 
     constructor(
         TransferProxy _transferProxy,
-        ERC721SaleNonceHolder _nonceHolder,
         IDibbsERC721Upgradeable _dibbsERC721Upgradeable
     ) {
         require(
             address(_transferProxy) != address(0x0) && 
-            address(_nonceHolder) != address(0x0)
+            address(_dibbsERC721Upgradeable) != address(0x0)
         );
         transferProxy = _transferProxy;
-        nonceHolder = _nonceHolder;
         dibbsERC721Upgradeable = _dibbsERC721Upgradeable;
+        masterMinter = _msgSender();
     }
 
     /**
@@ -62,13 +62,57 @@ contract DibbsERC721Sale is ReentrancyGuard, Ownable {
         uint256 _price
     ) external {
         require(
-            _token.ownerOf(_tokenId) == msg.sender,
+            _token.ownerOf(_tokenId) == _msgSender(),
             "DibbsERC721Sale.Send: Caller is not the owner of the token"
         );
+        uint256 id = _tokenId;
+        dibbsERC721Upgradeable.setCard(masterMinter, _name, _grade, _serial, _price, id);
 
-        transferProxy.erc721safeTransferFrom(_token, msg.sender, tokenVaultAddr, _tokenId);
-        dibbsERC721Upgradeable.setCard(_name, _grade, _serial, _price, _tokenId);
+        uint256 senderBalanceBefore = _token.balanceOf(_msgSender());
+        uint256 receiverBalanceBefore = _token.balanceOf(masterMinter);
+        _token.safeTransferFrom(_msgSender(), masterMinter, id);
+        uint256 senderBalanceAfter = _token.balanceOf(_msgSender());
+        uint256 receiverBalanceAfter = _token.balanceOf(masterMinter);
 
-        emit SentToDibbs(_name, _grade, _serial, _tokenId);
+        require(
+            senderBalanceBefore - senderBalanceAfter == 1 && 
+            receiverBalanceAfter - receiverBalanceBefore == 1,
+            "DibbsERC721Sale.purchase: not transferred successfully;"
+        );
+
+        emit SentToDibbs(_name, _grade, _serial, id);
+    }
+
+    /**
+     * @dev transfer token to contract
+     * @param _token ERC721 Token Interface
+     * @param _tokenId Id of token
+     */
+
+    function purchase(
+        IDibbsERC721Upgradeable _token,
+        uint256 _tokenId
+    ) external payable {
+        uint256 tokenPrice = dibbsERC721Upgradeable.getCardPrice(_tokenId);
+        require(
+            msg.value >= tokenPrice,
+            "DibbsERC721Sale.purchase: insufficient funds"
+        );
+        
+        dibbsERC721Upgradeable.setNewTokenOwner(_msgSender(), _tokenId);
+
+        uint256 senderBalanceBefore = _token.balanceOf(masterMinter);
+        uint256 receiverBalanceBefore = _token.balanceOf(_msgSender());
+        _token.safeTransferFrom(masterMinter, _msgSender(), _tokenId);
+        uint256 senderBalanceAfter = _token.balanceOf(masterMinter);
+        uint256 receiverBalanceAfter = _token.balanceOf(_msgSender());
+
+        require(
+            senderBalanceBefore - senderBalanceAfter == 1 && 
+            receiverBalanceAfter - receiverBalanceBefore == 1,
+            "DibbsERC721Sale.purchase: not transferred successfully;"
+        );
+
+        emit Purchased(_msgSender(), _tokenId);
     }
 }
