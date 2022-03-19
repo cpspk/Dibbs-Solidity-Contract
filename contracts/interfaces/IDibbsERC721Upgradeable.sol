@@ -9,8 +9,7 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
         address,
         string calldata,
         string calldata,
-        uint256,
-        uint256,
+        string calldata,
         bool
     );
 
@@ -20,10 +19,9 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
      * @param name card token name
      * @param grade card token grade
      * @param serial card token serial id (Psa indentifier)
-     * @param price cardtoken price
      * @param id card token id
      */
-    function setCard(address owner, string calldata name, string calldata grade, uint256 serial, uint256 price, uint256 id) external;
+    function setCard(address owner, string calldata name, string calldata grade, string calldata serial, uint256 id) external;
 
     /**
      * @dev (To be called externally) setter function: set true when card is fractionalized
@@ -32,45 +30,42 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
     function setCardFractionalized(uint256 id) external;
 
     ///@dev get (true or false) whether a token with id exists or not.
-    function getExistence(uint256 id) external returns (bool);
+    // function getExistence(uint256 id) external returns (bool);
 
     ///@dev get (true or false) whether a token with id fractionalized or not.
     function getFractionStatus(uint256 id) external returns (bool);
-
-    ///@dev get price of a token with id
-    function getCardPrice(uint256 id) external returns (uint256);
 
     function setNewTokenOwner(address newowner, uint256 id) external;
 
     function getTokenOwner(uint256 id) external returns (address);
 
+    function isTokenLocked(uint256 id) external view returns (bool);
+
     /**
-     * @dev mint card token to a recepient
-     * @param name card token name
-     * @param grade card token grade
-     * @param serial card token serial id (Psa indentifier)
-     * @param price card token price
+     * @dev mint card token to a recepient without payment
+     * @param _tokenURI token uri for a NFT
+     * @param _to recepient address
+     * @param _name card token name
+     * @param _grade card token grade
+     * @param _serial card token serial id (Psa indentifier)
      */
-    function mintToDibbs(
-        string calldata name,
-        string calldata grade,
-        uint256 serial,
-        uint256 price
+    function mint(
+        string calldata _tokenURI,
+        address _to,
+        string calldata _name,
+        string calldata _grade,
+        string calldata _serial
     ) external;
 
     /**
-     * @dev mint card token to a recepient
-     * @param name card token name
-     * @param grade card token grade
-     * @param serial card token serial id (Psa indentifier)
-     * @param price card token price
+     * @dev transfer token
+     * @param _to recepient address
+     * @param _tokenId token id
      */
-    function mintToDibbsPayable(
-        string calldata name,
-        string calldata grade,
-        uint256 serial,
-        uint256 price
-    ) external payable;
+    function transferToken(
+        address _to,
+        uint256 _tokenId
+    ) external;
 
     /**
      * @dev burn nft: delete card info corresponding to tokenId
@@ -80,7 +75,7 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
 
     /**
      * @dev change master minter
-     * @param newMinter address of new minter
+     * @param newAdmin address of new minter
      */
-    function changeMasterMinter(address newMinter) external;
+    function changeDibbsAdmin(address newAdmin) external;
 }

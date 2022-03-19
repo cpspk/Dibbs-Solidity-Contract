@@ -2,28 +2,31 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
 import "../interfaces/IDibbsERC721Upgradeable.sol";
 
-contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, OwnableUpgradeable {
+contract DibbsERC721Upgradeable is
+    IDibbsERC721Upgradeable,
+    ERC721Upgradeable,
+    ERC721URIStorageUpgradeable,
+    IERC721Receiver,
+    OwnableUpgradeable {
     using Counters for Counters.Counter;
 
     ///@dev card id tracker
     Counters.Counter private _tokenIdTracker;
-
-    ///@dev dibbs vault address (Currently using Metamask address)
-    // address public constant tokenVaultOwner = 0xAD143E30AD4852c97716ED5b32d45BcCfF7DEa36;
 
     ///@dev card token info
     struct Card {
         address owner;
         string name;
         string grade;
-        uint256 serial;
-        uint256 price;
+        string serial;
         bool fractionalized;
     }
 
@@ -31,35 +34,36 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, O
     mapping(uint256 => Card) public override cards;
 
     ///@dev Is the card token with id existed or not?
-    mapping(uint256 => bool) public isCardTokenExisted;
+    mapping(string => bool) public exists;
 
     ///@dev baseTokenURI
     string public baseTokenURI;
 
     ///@dev dibbs admins
-    address public masterMinter;
+    address public dibbsAdmin;
 
     ///@dev Fraction amount
     uint256 public constant fractionAmount = 10000000000000000;
 
     ///@dev change master minter event
-    event MasterMinterChanged(address prevMinter, address newMinter);
+    event DibbsAdminChanged(address prevMinter, address newMinter);
 
     ///@dev mint event
-    event Minted(string name, string grade, uint256 serial, uint256 id);
+    event Minted(address to, string name, string grade, string serial, uint256 id);
+
+    event Burnt(uint256 id);
+
+    event TokenTransferred(uint256 id);
 
     /**
      * @dev initialize upgraddeable contract uses initialize() instead of constructor
-     * @param baseURI token base uri
      */
-    function initialize(
-        string memory baseURI
-    ) initializer public {
+    function initialize() initializer public {
         __ERC721_init("Admin", "AD");
+        __ERC721URIStorage_init();
         __Ownable_init();
 
-        setBaseURI(baseURI);
-        masterMinter = _msgSender();// only owner
+        dibbsAdmin = _msgSender();// only owner
     }
     /**
      * @dev check if the token id is valid or not
@@ -70,19 +74,9 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, O
         _;
     }
 
-    ///@dev get (true or false) whether a token with id exists or not.
-    function getExistence(uint256 id) external override view onlyValidToken(id) returns (bool) {
-        return isCardTokenExisted[id];
-    }
-
     ///@dev get (true or false) whether a token with id fractionalized or not.
     function getFractionStatus(uint256 id) external override view onlyValidToken(id) returns (bool) {
         return cards[id].fractionalized;
-    }
-
-    ///@dev get price of a token with id
-    function getCardPrice(uint256 id) external override view onlyValidToken(id) returns (uint256) {
-        return cards[id].price;
     }
 
     /**
@@ -93,12 +87,16 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, O
         cards[id].fractionalized = true;
     }
 
-    function setNewTokenOwner(address newowner, uint256 id) external override onlyValidToken(id) {
+    function setNewTokenOwner(address newowner, uint256 id) public override onlyValidToken(id) {
         cards[id].owner = newowner;
     }
 
-    function getTokenOwner(uint256 id) external view override onlyValidToken(id) returns (address) {
+    function getTokenOwner(uint256 id) public view override onlyValidToken(id) returns (address) {
         return cards[id].owner;
+    }
+
+    function isTokenLocked(uint256 id) external view override onlyValidToken(id) returns (bool) {
+        return cards[id].owner == address(this);
     }
 
     /**
@@ -107,148 +105,137 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, O
      * @param name card token name
      * @param grade card token grade
      * @param serial card token serial id (Psa indentifier)
-     * @param price cardtoken price
      * @param id card token id
      */
-    function setCard(address owner, string calldata name, string calldata grade, uint256 serial, uint256 price, uint256 id) public override {
+    function setCard(address owner, string calldata name, string calldata grade, string calldata serial, uint256 id) external override {
+        string memory symbol = getSysmbol(name, grade, serial);
+        exists[symbol] = true;
 
-        isCardTokenExisted[serial] = true;
         cards[id] = Card(
             owner,
             name,
             grade,
             serial,
-            price,
             false //fractionalized
         );
     }
 
     /**
      * @dev mint card token to a recepient without payment
-     * @param name card token name
-     * @param grade card token grade
-     * @param serial card token serial id (Psa indentifier)
-     * @param price card token price
+     * @param _tokenURI token uri for a NFT
+     * @param _to recepient address
+     * @param _name card token name
+     * @param _grade card token grade
+     * @param _serial card token serial id (Psa indentifier)
      */
-    function mintToDibbs(
-        string calldata name,
-        string calldata grade,
-        uint256 serial,
-        uint256 price
-    ) external override virtual {
+    function mint(
+        string calldata _tokenURI,
+        address _to,
+        string calldata _name,
+        string calldata _grade,
+        string calldata _serial
+    ) external virtual override {
         require(getCurrentMinter() == _msgSender(), "DibbsERC721Upgradeable: Only dibbs can mint NFTs");
-        require(bytes(name).length != 0, "DibbsERC721Upgradeable: invalid token name");
-        require(bytes(grade).length != 0, "DibbsERC721Upgradeable: invalid token grade");
-        require(serial > 0, "DibbsERC721Upgradeable: invalid serial id");
-        require(price > 0, "DibbsERC721Upgradeable: invalid token price");
-        require(isCardTokenExisted[serial] != true, "DibbsERC721Upgradeable: existing card token");
-
-        isCardTokenExisted[serial] = true;
-
+        require(bytes(_name).length != 0, "DibbsERC721Upgradeable: invalid token name");
+        require(bytes(_grade).length != 0, "DibbsERC721Upgradeable: invalid token grade");
+        require(bytes(_serial).length != 0, "DibbsERC721Upgradeable: invalid serial id");
+        
         uint256 id = totalSupply();
+        string memory symbol = getSysmbol(_name, _grade, _serial);
+        require(exists[symbol] != true, "DibbsERC721Upgradeable: existing card token");
+
+        exists[symbol] = true;
+
         cards[id] = Card(
-            masterMinter,
-            name,
-            grade,
-            serial,
-            price,
+            _to,
+            _name,
+            _grade,
+            _serial,
             false
         );
 
-        uint256 ownerBalanceBefore = balanceOf(_msgSender());
-
-        _safeMint(_msgSender(), id);
-
-        uint256 ownerBalanceAfter = balanceOf(_msgSender());
-
+        _safeMint(_to, id);
+        _setTokenURI(id, _tokenURI);
         _tokenIdTracker.increment();
 
-        require(
-            (ownerBalanceAfter - ownerBalanceBefore) == 1,
-            "DibbsERC721Upgradeable: token minting didn't work properly"
-        );
-
-        emit Minted(name, grade, serial, id);
+        emit Minted(_to, _name, _grade, _serial, id);
     }
 
     /**
-     * @dev mint card token to a recepient
-     * @param name card token name
-     * @param grade card token grade
-     * @param serial card token serial id (Psa indentifier)
-     * @param price card token price
+     * @dev transfer token
+     * @param _to recepient address
+     * @param _tokenId token id
      */
-    function mintToDibbsPayable(
-        string calldata name,
-        string calldata grade,
-        uint256 serial,
-        uint256 price
-    ) external payable override {
-        require(_msgSender() != getCurrentMinter(), "DibbsERC721Upgradeable: Dibbs shouldn't call payalble mint function");
-        require(bytes(name).length != 0, "DibbsERC721Upgradeable: invalid token name");
-        require(bytes(grade).length != 0, "DibbsERC721Upgradeable: invalid token grade");
-        require(serial > 0, "DibbsERC721Upgradeable: invalid serial id");
-        require(msg.value >= price, "DibbsERC721Upgradeable: not enough token price");
-        require(isCardTokenExisted[serial] != true, "DibbsERC721Upgradeable: existing card token");
-
-        isCardTokenExisted[serial] = true;
-
-        uint256 id = totalSupply();
-        cards[id] = Card(
-            masterMinter,
-            name,
-            grade,
-            serial,
-            price,
-            false
+    function transferToken(
+        address _to,
+        uint256 _tokenId
+    ) external override {
+        require(
+            ownerOf(_tokenId) == _msgSender(),
+            "DibbsERC721Upgradeable: Caller is not the owner of the token"
         );
-        // refund when there's more money than its price
-        if (msg.value > price) {
-            (bool sent, ) = payable(_msgSender()).call{value: msg.value - price}("");
-            require(sent, "DibbsERC721Upgradeable: Change transfer failed");
-        }
 
-        uint256 ownerBalanceBefore = balanceOf(_msgSender());
+        uint256 senderBalanceBefore = balanceOf(_msgSender());
+        uint256 receiverBalanceBefore = balanceOf(_to);
 
-        _safeMint(_msgSender(), id);
-
-        uint256 ownerBalanceAfter = balanceOf(_msgSender());
-
-        _tokenIdTracker.increment();
+        safeTransferFrom(_msgSender(), _to, _tokenId);
+        
+        uint256 senderBalanceAfter = balanceOf(_msgSender());
+        uint256 receiverBalanceAfter = balanceOf(_to);
 
         require(
-            (ownerBalanceAfter - ownerBalanceBefore) == 1,
-            "DibbsERC721Upgradeable: token minting didn't work properly"
+            senderBalanceBefore - senderBalanceAfter == 1 && 
+            receiverBalanceAfter - receiverBalanceBefore == 1,
+            "DibbsERC721Upgradeable: not transferred successfully"
         );
 
-        emit Minted(name, grade, serial, id);
+        setNewTokenOwner(_to, _tokenId);
+
+        emit TokenTransferred(_tokenId);
+    }
+
+    /**
+     * @dev get symbol: name + grade + serial
+     * @param _name token name
+     * @param _grade token grade
+     * @param _serial token serial id
+     */
+    function getSysmbol(
+        string memory _name,
+        string memory _grade,
+        string memory _serial
+    ) public pure returns (string memory) {
+        return string(abi.encodePacked(_name, _grade, _serial));
     }
 
     /**
      * @dev burn nft: delete card info corresponding to tokenId
-     * @param tokenId burned id
+     * @param id burned id
      */
-    function burn(uint256 tokenId) external override onlyOwner{
-        isCardTokenExisted[cards[tokenId].serial] = false;
-        delete cards[tokenId];
+    function burn(uint256 id) external override onlyOwner{
+        string memory symbol = getSysmbol(cards[id].name, cards[id].grade, cards[id].serial);
+        exists[symbol] = false;
+        delete cards[id];
 
-        _burn(tokenId);
+        _burn(id);
+        emit Burnt(id);
     }
 
     /**
      * @dev change master minter
-     * @param newMinter address of new minter
+     * @param newAdmin address of new minter
      */
-    function changeMasterMinter(address newMinter) external override virtual onlyOwner {
-        require(newMinter != address(0), "DibbsERC721Upgradeable: invalid address");
+    function changeDibbsAdmin(address newAdmin) external virtual override onlyOwner {
+        require(newAdmin != address(0), "DibbsERC721Upgradeable: invalid address");
 
-        address prevMinter = masterMinter;
-        masterMinter = newMinter;
-        emit MasterMinterChanged(prevMinter, newMinter);
+        address prevAdmin = dibbsAdmin;
+        dibbsAdmin = newAdmin;
+        emit DibbsAdminChanged(prevAdmin, newAdmin);
     }    
+    
     ///@dev get current master minter address
     function getCurrentMinter() internal view returns (address) {
-        return masterMinter;
+        return dibbsAdmin;
     }
 
     ///@dev get current token id tracker
@@ -256,19 +243,35 @@ contract DibbsERC721Upgradeable is IDibbsERC721Upgradeable, ERC721Upgradeable, O
         return _tokenIdTracker.current();
     }
 
-    /**
-     * @dev Get `baseTokenURI`
-     * Overrided
-     */
-    function _baseURI() internal view virtual override returns (string memory) {
-        return baseTokenURI;
+    function supportsInterface(bytes4 _interfaceId)
+        public
+        view
+        virtual
+        override(ERC721Upgradeable, IERC165Upgradeable)
+        returns (bool) 
+    {
+        return super.supportsInterface(_interfaceId);
     }
 
-    /**
-     * @dev Set `baseTokenURI`
-     * Only `owner` can call
-     */
-    function setBaseURI(string memory baseURI) public onlyOwner {
-        baseTokenURI = baseURI;
+    // Standard functions to be overridden
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal override(ERC721Upgradeable) {
+        ERC721Upgradeable._beforeTokenTransfer(from, to, tokenId);
+    }
+
+
+    function tokenURI(uint256 tokenId) public view virtual override(ERC721Upgradeable, ERC721URIStorageUpgradeable) returns (string memory ) {
+        return ERC721URIStorageUpgradeable.tokenURI(tokenId);
+    }
+
+    function _burn(uint256 tokenId) internal virtual override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
+        ERC721URIStorageUpgradeable._burn(tokenId);
+    }
+
+    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 }
