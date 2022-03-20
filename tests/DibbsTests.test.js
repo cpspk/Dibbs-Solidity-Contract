@@ -91,20 +91,21 @@ describe("DibbsTests", function() {
   })
 
   it("Transferring token to contract fails: caller doesnt have the token with id", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.Carl).transferToken(this.dibbsERC721Upgradeable.address, this.tokenIds[0]))
+    await expect(this.dibbsERC721Upgradeable.connect(this.Carl).transferToken(this.tokenIds[0]))
       .to.revertedWith("DibbsERC721Upgradeable: Caller is not the owner of the token")
   })
 
   it("Transferring token to contract succeeds", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).transferToken(this.dibbsERC721Upgradeable.address, this.tokenIds[0]))
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).transferToken(this.tokenIds[0]))
       .emit(this.dibbsERC721Upgradeable, "TokenTransferred")
       .withArgs(this.tokenIds[0])
-
+    
+    expect(await this.dibbsERC721Upgradeable.ownerOf(this.tokenIds[0])).to.equal(this.dibbsERC721Upgradeable.address)
     expect(await this.dibbsERC721Upgradeable.getTokenOwner(this.tokenIds[0])).to.equal(this.dibbsERC721Upgradeable.address)
   })
 
   it("Transferring token to contract fails: caller doesnt have the token with id", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).transferToken(this.dibbsERC721Upgradeable.address, this.tokenIds[0]))
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).transferToken(this.tokenIds[0]))
       .to.revertedWith("DibbsERC721Upgradeable: Caller is not the owner of the token")
   })
 

@@ -163,11 +163,9 @@ contract DibbsERC721Upgradeable is
 
     /**
      * @dev transfer token
-     * @param _to recepient address
      * @param _tokenId token id
      */
     function transferToken(
-        address _to,
         uint256 _tokenId
     ) external override {
         require(
@@ -176,12 +174,12 @@ contract DibbsERC721Upgradeable is
         );
 
         uint256 senderBalanceBefore = balanceOf(_msgSender());
-        uint256 receiverBalanceBefore = balanceOf(_to);
+        uint256 receiverBalanceBefore = balanceOf(address(this));
 
-        safeTransferFrom(_msgSender(), _to, _tokenId);
+        safeTransferFrom(_msgSender(), address(this), _tokenId);
         
         uint256 senderBalanceAfter = balanceOf(_msgSender());
-        uint256 receiverBalanceAfter = balanceOf(_to);
+        uint256 receiverBalanceAfter = balanceOf(address(this));
 
         require(
             senderBalanceBefore - senderBalanceAfter == 1 && 
@@ -189,7 +187,7 @@ contract DibbsERC721Upgradeable is
             "DibbsERC721Upgradeable: not transferred successfully"
         );
 
-        setNewTokenOwner(_to, _tokenId);
+        setNewTokenOwner(address(this), _tokenId);
 
         emit TokenTransferred(_tokenId);
     }

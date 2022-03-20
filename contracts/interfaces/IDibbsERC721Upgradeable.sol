@@ -59,11 +59,9 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
 
     /**
      * @dev transfer token
-     * @param _to recepient address
      * @param _tokenId token id
      */
     function transferToken(
-        address _to,
         uint256 _tokenId
     ) external;
 
