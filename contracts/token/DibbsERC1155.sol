@@ -118,8 +118,13 @@ contract DibbsERC1155 is
            balanceOf(_msgSender(), _tokenId) >= _amount,
             "DibbsERC1155: caller doesn't have the amount of tokens"
         );
-        
+        uint256 balanceBefore = balanceOf(_msgSender(), _tokenId);
         safeTransferFrom(_msgSender(), address(this), _tokenId, _amount, EMPTY);
+        uint256 balanceafter = balanceOf(_msgSender(), _tokenId);
+
+        require(balanceBefore -  balanceafter == _amount,
+            "DibbsERC1155: token transfermation failed"
+        );
 
         subFractions(_msgSender(), _tokenId, _amount);
         addFractions(address(this), _tokenId, _amount);
