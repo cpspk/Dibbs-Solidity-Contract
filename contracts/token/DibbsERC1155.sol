@@ -2,7 +2,9 @@ pragma solidity ^0.8.4;
 // SPDX-License-Identifier: UNLICENSED
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol"; 
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
@@ -14,6 +16,8 @@ contract DibbsERC1155 is
     IDibbsERC1155,
     ERC1155Metadata_URI,
     ERC1155,
+    IERC1155Receiver,
+    ReentrancyGuard,
     Ownable
 {
     using SafeMath for uint256;
@@ -27,11 +31,17 @@ contract DibbsERC1155 is
     ///@dev IDibbsERC721Upgradeable instance
     IDibbsERC721Upgradeable public dibbsERC721Upgradeable;
 
+    bytes constant EMPTY = "";
+
     ///@dev tokenId => owner => balance
     mapping(uint256 => mapping(address => uint256)) ownerBalace;
 
     ///@dev event
     event Fractionalized(address to, uint256 tokenId);
+
+    event FractionsTransferred(address from, address to, uint256 id, uint256 amount);
+
+    event Burnt(uint256 id);
 
     constructor(
         IDibbsERC721Upgradeable _dibbsERC721Upgradeable,
@@ -45,7 +55,7 @@ contract DibbsERC1155 is
      * @param tokenId token id
      * @param amount to be added
      */
-    function addFractions(address to, uint256 tokenId, uint256 amount) external override {
+    function addFractions(address to, uint256 tokenId, uint256 amount) public override {
         ownerBalace[tokenId][to] += amount;
     }
     
@@ -55,7 +65,7 @@ contract DibbsERC1155 is
      * @param tokenId token id
      * @param amount to be subtracted
      */
-    function subFractions(address to, uint256 tokenId, uint256 amount) external override {
+    function subFractions(address to, uint256 tokenId, uint256 amount) public override {
         ownerBalace[tokenId][to] -= amount;
     }
 
@@ -64,7 +74,7 @@ contract DibbsERC1155 is
      * @param to owner address
      * @param tokenId token id
      */
-    function deleteOwnerFraction(address to, uint256 tokenId) external override {
+    function deleteOwnerFraction(address to, uint256 tokenId) public override {
         delete ownerBalace[tokenId][to];
     }
 
@@ -73,36 +83,8 @@ contract DibbsERC1155 is
      * @param to owner address
      * @param tokenId token id
      */
-    function getFractions(address to, uint256 tokenId) external view override returns (uint256) {
+    function getFractions(address to, uint256 tokenId) public view override returns (uint256) {
         return ownerBalace[tokenId][to];
-    }
-
-    /**
-     * @dev get price corresponding to the amount
-     * @param tokenId token id
-     * @param amount amount
-     */
-    function getPrice(uint256 tokenId, uint256 amount) external override returns (uint256) {
-        uint256 tokenPrice = dibbsERC721Upgradeable.getCardPrice(tokenId);
-        return amount.mul(tokenPrice).div(fractionAmount);
-    }
-
-    /**
-     * @dev fractionalize to dibbs
-     * @param _tokenId token id
-     */
-    function fractionalizeToDibbs(
-        uint256 _tokenId
-    ) external payable override onlyOwner {
-        require(!dibbsERC721Upgradeable.getFractionStatus(_tokenId), "DibbsERC1155: this token is already fractionalized");
-        dibbsERC721Upgradeable.setCardFractionalized(_tokenId);
-
-        _mint(_msgSender(), _tokenId, fractionAmount, "");
-        _setTokenURI(_tokenId);
-
-        ownerBalace[_tokenId][_msgSender()] = fractionAmount;
-
-        emit Fractionalized(_msgSender(), _tokenId);
     }
 
     /**
@@ -110,13 +92,14 @@ contract DibbsERC1155 is
      * @param to owner address
      * @param _tokenId token id
      */
-    function fractionalizeToUser(
+    function fractionalize(
         address to,
         uint256 _tokenId
     ) external override onlyOwner {
         require(to != address(0), "DibbsERC1155: invalid to address");
         require(!dibbsERC721Upgradeable.getFractionStatus(_tokenId), "DibbsERC1155: this token is already fractionalized");
-        //TODO only contract owned tokens can be fractionalized
+        require(dibbsERC721Upgradeable.isTokenLocked(_tokenId), "DibbsERC1155: this token is not locked in contract");
+
         dibbsERC721Upgradeable.setCardFractionalized(_tokenId);
 
         _mint(to, _tokenId, fractionAmount, "");
@@ -127,21 +110,49 @@ contract DibbsERC1155 is
         emit Fractionalized(to, _tokenId);
     }
 
-    /**
-     * @dev burn a token
-     * @param _owner owner address
-     * @param _tokenId a token type id
-     * @param _amount amount tokens
-     */
-    function burn(
-        address _owner,
+    function transferFractions(
         uint256 _tokenId,
         uint256 _amount
-    ) external override {
-        require(_owner == _msgSender() || isApprovedForAll(_owner, _msgSender()) == true,
-        "DibbsERC1155: need operator approval for 3rd party burns.");
+    ) external nonReentrant {
+        require(
+           balanceOf(_msgSender(), _tokenId) >= _amount,
+            "DibbsERC1155: caller doesn't have the amount of tokens"
+        );
+        uint256 balanceBefore = balanceOf(_msgSender(), _tokenId);
+        safeTransferFrom(_msgSender(), address(this), _tokenId, _amount, EMPTY);
+        uint256 balanceafter = balanceOf(_msgSender(), _tokenId);
 
-        _burn(_owner, _tokenId, _amount);
+        require(balanceBefore -  balanceafter == _amount,
+            "DibbsERC1155: token transfermation failed"
+        );
+
+        subFractions(_msgSender(), _tokenId, _amount);
+        addFractions(address(this), _tokenId, _amount);
+
+        if(getFractions(_msgSender(), _tokenId) == 0) {
+            deleteOwnerFraction(_msgSender(), _tokenId);
+        }
+
+        emit FractionsTransferred(
+            _msgSender(),
+            address(this),
+            _tokenId,
+            _amount
+        );
+    }
+
+    /**
+     * @dev burn a token
+     * @param _tokenId a token type id
+     */
+    function burn(
+        uint256 _tokenId
+    ) public override {
+        require(balanceOf(address(this), _tokenId) == fractionAmount,
+        "DibbsERC1155: the contract doesn't have enoungh amount of fractions");
+
+        _burn(address(this), _tokenId, fractionAmount);
+        emit Burnt(_tokenId);
     }
 
     function _setTokenURI(uint256 _tokenId) override virtual internal {
@@ -154,5 +165,13 @@ contract DibbsERC1155 is
 
     function uri(uint256 _tokenId) override(ERC1155Metadata_URI, ERC1155) public view virtual returns (string memory)  {
         return _tokenURI(_tokenId);
+    }
+
+    function onERC1155Received(address, address, uint256, uint256, bytes memory) public virtual override returns (bytes4) {
+        return this.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(address, address, uint256[] memory, uint256[] memory, bytes memory) public virtual override returns (bytes4) {
+        return this.onERC1155BatchReceived.selector;
     }
 }
