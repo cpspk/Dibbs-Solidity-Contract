@@ -23,10 +23,7 @@ contract DibbsERC1155 is
     using SafeMath for uint256;
 
     ///@dev Fraction amount
-    uint256 public constant fractionAmount = 10000000000000000;
-    
-    ///@dev dibbs vault address (Currently using Metamask address)
-    // address public constant _msgSender() = 0xAD143E30AD4852c97716ED5b32d45BcCfF7DEa36;
+    uint256 public constant FRACTION_AMOUNT = 10000000000000000;
 
     ///@dev IDibbsERC721Upgradeable instance
     IDibbsERC721Upgradeable public dibbsERC721Upgradeable;
@@ -36,7 +33,7 @@ contract DibbsERC1155 is
     ///@dev tokenId => owner => balance
     mapping(uint256 => mapping(address => uint256)) ownerBalace;
 
-    ///@dev event
+    ///@dev events
     event Fractionalized(address to, uint256 tokenId);
 
     event FractionsTransferred(address from, address to, uint256 id, uint256 amount);
@@ -49,6 +46,15 @@ contract DibbsERC1155 is
     ) ERC1155Metadata_URI(_uri) ERC1155(_uri) {
         dibbsERC721Upgradeable = _dibbsERC721Upgradeable;
     }
+
+    /**
+     * @dev set new upgradeable contract address
+     * @param newAddr new upgradeable contract address
+     */
+    function setContractAddress(address newAddr) external onlyOwner {
+        dibbsERC721Upgradeable = IDibbsERC721Upgradeable(newAddr);
+    }
+
     /**
      * @dev add amount balace of a owner
      * @param to owner address
@@ -102,10 +108,10 @@ contract DibbsERC1155 is
 
         dibbsERC721Upgradeable.setCardFractionalized(_tokenId);
 
-        _mint(to, _tokenId, fractionAmount, "");
+        _mint(to, _tokenId, FRACTION_AMOUNT, "");
         _setTokenURI(_tokenId);
 
-        ownerBalace[_tokenId][to] = fractionAmount;
+        ownerBalace[_tokenId][to] = FRACTION_AMOUNT;
 
         emit Fractionalized(to, _tokenId);
     }
@@ -145,13 +151,13 @@ contract DibbsERC1155 is
      * @dev burn a token
      * @param _tokenId a token type id
      */
-    function burn(
+    function burnFractions(
         uint256 _tokenId
     ) public override {
-        require(balanceOf(address(this), _tokenId) == fractionAmount,
+        require(balanceOf(address(this), _tokenId) == FRACTION_AMOUNT,
         "DibbsERC1155: the contract doesn't have enoungh amount of fractions");
 
-        _burn(address(this), _tokenId, fractionAmount);
+        _burn(address(this), _tokenId, FRACTION_AMOUNT);
         emit Burnt(_tokenId);
     }
 

@@ -21,11 +21,11 @@ contract Shotgun is Ownable {
     }
 
     struct ShotgunListing {
-        address owner;
+        address starter;
         address tokenAddr;
         uint256 tokenId;
         uint256 balance;
-        uint256 fisrtAmount;
+        uint256 firstAmount;
         uint256 remainingAmount;
         uint256 createdAt;
     }
@@ -37,6 +37,8 @@ contract Shotgun is Ownable {
     uint256 public constant HALF_OF_FRACTION_AMOUNT = 5000000000000000;
     
     uint256 public constant FRACTION_AMOUNT = 10000000000000000;
+
+    uint256 public constant AUCTION_DURATION = 90 days;
 
     address[] public fractionOwners;
 
@@ -56,11 +58,18 @@ contract Shotgun is Ownable {
         totalAmount = _totalAmount;
     }
 
+    function isAuctionExpired(uint256 id) public view returns (bool) {
+        if(block.timestamp >= listings[id].createdAt + AUCTION_DURATION)
+            return true;
+
+        return false;
+    }
+
     function transferForShotgun(
         IDibbsERC1155 _tokenAddr,
         uint256 _tokenId,
         uint256 _amount
-    ) public payable {
+    ) external payable {
         require(currentStatus == ShotgunStatus.FREE, "Shotgun: is ongoing now");
         require(msg.value > 0, "Shotgun: insufficient funds");
         require(
@@ -96,26 +105,55 @@ contract Shotgun is Ownable {
         require(currentStatus == ShotgunStatus.WAITING, "Shotgun: is not waiting now.");
         uint256 id = _idTracker.current() - 1;
         listings[id].createdAt = block.timestamp;
-        listings[id].remainingAmount = totalAmount - listings[id].fisrtAmount;
+        listings[id].remainingAmount = totalAmount - listings[id].firstAmount;
         currentStatus = ShotgunStatus.ONGOING;
 
         emit AuctionStarted(listings[id].createdAt, totalAmount);
     }
 
-    function getUnitPrice(uint256 id) public view returns (uint256) {
+    function _getUnitPrice(uint256 id) internal view returns (uint256) {
         return listings[id].balance * FRACTION_AMOUNT / listings[id].remainingAmount;
     }
 
-    function purchase() public payable {
+    function getPrice(uint256 id, uint256 amount) internal view returns (uint256) {
+        return _getUnitPrice(id) * amount / FRACTION_AMOUNT;
+    }
+
+    function purchase() external payable {
         require(currentStatus == ShotgunStatus.ONGOING, "Shotgun: is not started yet.");
         uint256 id = _idTracker.current() - 1;
-        uint256 price = getUnitPrice(id) * listings[id].fisrtAmount / FRACTION_AMOUNT;
+        uint256 price = getPrice(id, listings[id].firstAmount);
         require(msg.value >= price, "Shotgun: insufficient funds.");
 
-        IDibbsERC1155(listings[id].tokenAddr).safeTransferFrom(address(this), msg.sender, id, listings[id].fisrtAmount, '');
+        IDibbsERC1155(listings[id].tokenAddr).safeTransferFrom(address(this), msg.sender, listings[id].tokenId, listings[id].firstAmount, '');
         currentStatus = ShotgunStatus.OVER;
 
         emit Purchased(msg.sender);
+    }
+
+    function refundToken() external {
+        uint256 id = _idTracker.current() - 1;
+        require(
+            isAuctionExpired(id) && currentStatus != ShotgunStatus.OVER,
+            "Shotgun: is ongoing now."
+        );
+
+        IDibbsERC1155(listings[id].tokenAddr).safeTransferFrom(
+            address(this),
+            listings[id].starter,
+            listings[id].tokenId,
+            totalAmount,
+            ''
+        );
+    }
+
+    function claimProportion() external {
+        require(currentStatus == ShotgunStatus.OVER, "Shotgun: is not over yet.");
+        uint256 id = _idTracker.current() - 1;
+        require(msg.sender == listings[id].starter);
+        uint256 price = getPrice(id, listings[id].firstAmount);
+        (bool success, ) = payable(listings[id].starter).call{value: price}("");
+        require(success, "Shotgun: refunding is not successful.");
     }
 }
 

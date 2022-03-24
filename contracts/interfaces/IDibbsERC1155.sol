@@ -18,9 +18,15 @@ interface IDibbsERC1155 is IERC1155 {
      * @dev burn a token
      * @param _tokenId a token type id
      */
-    function burn(
+    function burnFractions(
         uint256 _tokenId
     ) external;
+
+    /**
+     * @dev set new upgradeable contract address
+     * @param newAddr new upgradeable contract address
+     */
+    function setContractAddress(address newAddr) external;
 
     /**
      * @dev add amount balace of a owner

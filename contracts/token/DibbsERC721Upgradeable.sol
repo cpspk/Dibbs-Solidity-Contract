@@ -42,9 +42,6 @@ contract DibbsERC721Upgradeable is
     ///@dev dibbs admins
     address public dibbsAdmin;
 
-    ///@dev Fraction amount
-    uint256 public constant fractionAmount = 10000000000000000;
-
     ///@dev change master minter event
     event DibbsAdminChanged(address prevMinter, address newMinter);
 
