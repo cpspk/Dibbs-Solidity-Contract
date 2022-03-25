@@ -16,7 +16,7 @@ This project is to build smart contracts for Dibbs marketplace using Solidity. I
 - startAuction: Dibbs admin start Shotgun auction after receiving amount of fractions and Ethers.
 - purchase: Another user purchase the locked fractions with payment proportional to the amount.
 - refundToken: If the auction expired(after 3 months), the auction starter will get the rest fractions and his sending fractions back.
-- claminProportion: afer Shotgun auction terminated(), the other owners of the token(fractions) can claim their proportional share of the balance which the auction starter sent depending on the tokens they had before.
+- claminProportion: after Shotgun auction terminated(the case which another user purchases), the other owners of the token(fractions) can claim their proportional share of the balance which the auction starter sent depending on the tokens they had before.
 
 Try running some of the following tasks:
 

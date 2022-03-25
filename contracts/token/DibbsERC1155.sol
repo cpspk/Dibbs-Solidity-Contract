@@ -38,6 +38,8 @@ contract DibbsERC1155 is
 
     event FractionsTransferred(address from, address to, uint256 id, uint256 amount);
 
+    event FractionsLocked(address from, uint256 id, uint256 amount);
+
     event Burnt(uint256 id);
 
     constructor(
@@ -51,7 +53,7 @@ contract DibbsERC1155 is
      * @dev set new upgradeable contract address
      * @param newAddr new upgradeable contract address
      */
-    function setContractAddress(address newAddr) external onlyOwner {
+    function setContractAddress(address newAddr) external override onlyOwner {
         dibbsERC721Upgradeable = IDibbsERC721Upgradeable(newAddr);
     }
 
@@ -116,7 +118,7 @@ contract DibbsERC1155 is
         emit Fractionalized(to, _tokenId);
     }
 
-    function transferFractions(
+    function lockFractions(
         uint256 _tokenId,
         uint256 _amount
     ) external nonReentrant {
@@ -135,13 +137,45 @@ contract DibbsERC1155 is
         subFractions(_msgSender(), _tokenId, _amount);
         addFractions(address(this), _tokenId, _amount);
 
-        if(getFractions(_msgSender(), _tokenId) == 0) {
+        if(balanceOf(_msgSender(), _tokenId) == 0) {
+            deleteOwnerFraction(_msgSender(), _tokenId);
+        }
+
+        emit FractionsLocked(
+            _msgSender(),
+            _tokenId,
+            _amount
+        );
+    }
+
+    function transferFractions(
+        address to,
+        uint256 _tokenId,
+        uint256 _amount
+    ) external nonReentrant {
+        require(
+           balanceOf(_msgSender(), _tokenId) >= _amount,
+            "DibbsERC1155: caller doesn't have the amount of tokens"
+        );
+        // TODO caller is owner?
+        uint256 balanceBefore = balanceOf(_msgSender(), _tokenId);
+        safeTransferFrom(_msgSender(), to, _tokenId, _amount, EMPTY);
+        uint256 balanceafter = balanceOf(_msgSender(), _tokenId);
+
+        require(balanceBefore -  balanceafter == _amount,
+            "DibbsERC1155: token transfermation failed"
+        );
+
+        subFractions(_msgSender(), _tokenId, _amount);
+        addFractions(to, _tokenId, _amount);
+
+        if(balanceOf(_msgSender(), _tokenId) == 0 && _msgSender() != address(this)) {
             deleteOwnerFraction(_msgSender(), _tokenId);
         }
 
         emit FractionsTransferred(
             _msgSender(),
-            address(this),
+            to,
             _tokenId,
             _amount
         );
