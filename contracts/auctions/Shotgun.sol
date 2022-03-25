@@ -21,6 +21,8 @@ contract Shotgun is
 
     mapping(address => bool) isFractionOwner;
 
+    mapping(address => uint256) ownerFractionBalance;
+
     ShotgunStatus public currentStatus;
 
     IDibbsERC1155 public tokenAddr;
@@ -59,7 +61,7 @@ contract Shotgun is
 
     event ProportionClaimed(address claimer);
 
-    event AllFractionsRefunded(address stater);
+    event FractionsRefunded(address stater);
 
     constructor(
         IDibbsERC1155 _tokenAddr
@@ -93,6 +95,7 @@ contract Shotgun is
 
             otherOwners.push(_otherOwners[i]);
             uint256 fractionAmount = tokenAddr.balanceOf(_otherOwners[i], _tokenId);
+            ownerFractionBalance[_otherOwners[i]] = fractionAmount;
             otherOwnersBalance += fractionAmount;
             tokenAddr.safeTransferFrom(_otherOwners[i], address(this), tokenId, fractionAmount, '');
             isFractionOwner[_otherOwners[i]] = true;
@@ -117,6 +120,7 @@ contract Shotgun is
 
         tokenAddr.safeTransferFrom(msg.sender, address(this), tokenId, _amount, '');
         auctionStarter = msg.sender;
+        ownerFractionBalance[auctionStarter] = _amount;
         starterFractionBalance = _amount;
         starterEtherBalance = msg.value;
         totalFractionBalance = starterFractionBalance + otherOwnersBalance;
@@ -144,33 +148,27 @@ contract Shotgun is
         uint256 price = totalPrice *  starterFractionBalance / totalFractionBalance;
         require(msg.value >= price, "Shotgun: insufficient funds.");
 
-        tokenAddr.safeTransferFrom(address(this), msg.sender, tokenId, starterFractionBalance, '');
-        currentStatus = ShotgunStatus.OVER;
+        uint256 amount = starterFractionBalance + ownerFractionBalance[msg.sender];
+        tokenAddr.safeTransferFrom(address(this), msg.sender, tokenId, amount, '');
 
+        currentStatus = ShotgunStatus.OVER;
         emit Purchased(msg.sender);
     }
 
     function claimProportion() external {
         require(
-            currentStatus == ShotgunStatus.OVER || isAuctionExpired(),
+            isAuctionExpired(),
             "Shotgun: is not over yet."
         );
         uint256 price;
         if (msg.sender == auctionStarter) {
             if (currentStatus == ShotgunStatus.OVER) {
-                price = totalPrice *  starterFractionBalance / totalFractionBalance;
+                price = totalPrice *  starterFractionBalance / totalFractionBalance + starterEtherBalance;
                 (bool success, ) = payable(auctionStarter).call{value: price}("");
                 require(success, "Shotgun: refunding is not successful.");
                 
-                tokenAddr.safeTransferFrom(
-                    address(this),
-                    auctionStarter,
-                    tokenId,
-                    otherOwnersBalance,
-                    ''
-                );
                 emit ProportionClaimed(msg.sender);
-            } else if (isAuctionExpired()) {
+            } else {
                 tokenAddr.safeTransferFrom(
                     address(this),
                     auctionStarter,
@@ -178,17 +176,30 @@ contract Shotgun is
                     starterFractionBalance + otherOwnersBalance,
                     ''
                 );
-                emit AllFractionsRefunded(msg.sender);
-            } else {
-                revert("Shotgun: is not over yet.");
+                
+                emit FractionsRefunded(msg.sender);
             }
         } else {
             require(isFractionOwner[msg.sender], "Shotgun: caller is not registered.");
-            uint256 amount = tokenAddr.balanceOf(msg.sender, tokenId);
-            price = starterEtherBalance *  amount / starterFractionBalance;
-            (bool success, ) = payable(msg.sender).call{value: price}("");
-            require(success, "Shotgun: refunding is not successful.");
-            emit ProportionClaimed(msg.sender);
+            
+            if (currentStatus == ShotgunStatus.OVER) {
+                tokenAddr.safeTransferFrom(
+                    address(this),
+                    msg.sender,
+                    tokenId,
+                    ownerFractionBalance[msg.sender],
+                    ''
+                );
+
+                emit FractionsRefunded(msg.sender);
+            } else {
+                uint256 amount = ownerFractionBalance[msg.sender];
+                price = starterEtherBalance *  amount / starterFractionBalance;
+                (bool success, ) = payable(msg.sender).call{value: price}("");
+                require(success, "Shotgun: refunding is not successful.");
+
+                emit ProportionClaimed(msg.sender);
+            }
         }
     }
 

@@ -5,12 +5,11 @@ const { advanceTime } = require('../utils/lib');
 describe("DibbsTests", function() {
   before(async () => {
     const users = await ethers.getSigners()
-    const [dibbsAdmin, Alice, Bob, Carl, David] = users
+    const [dibbsAdmin, Alice, Bob, Carl] = users
     this.dibbsAdmin = dibbsAdmin
     this.Alice = Alice
     this.Bob = Bob
     this.Carl = Carl
-    this.David = David
     this.tokenIds = [0, 1, 2, 3]
     this.nftPrice = ethers.utils.parseEther("0.06")
     this.additional = ethers.utils.parseEther("0.00000000000000001")
@@ -316,8 +315,8 @@ describe("DibbsTests", function() {
       .withArgs(this.Alice.address, this.dibbsERC1155.address, this.tokenIds[1], amount)
   })
 
-  it("Purchasing by David failed: auction is not started", async () => {
-    await expect(this.shotgun.connect(this.David).purchase()).to.revertedWith("Shotgun: is not started yet.")
+  it("Purchasing by Carl failed: auction is not started", async () => {
+    await expect(this.shotgun.connect(this.Carl).purchase()).to.revertedWith("Shotgun: is not started yet.")
   })
 
   it("Starting Shotgun auction", async () => {
@@ -335,18 +334,18 @@ describe("DibbsTests", function() {
 
   it("Claiming proportion succeeded by Alice", async () => {
     await expect(this.shotgun.connect(this.Alice).claimProportion())
-      .emit(this.shotgun, "AllFractionsRefunded")
+      .emit(this.shotgun, "FractionsRefunded")
       .withArgs(this.Alice.address)
   })
   
-  // it("Purchasing by David succeeded", async () => {
-  //   await expect(this.shotgun.connect(this.David).purchase({value: this.buyerBalance}))
+  // it("Purchasing by Carl succeeded", async () => {
+  //   await expect(this.shotgun.connect(this.Carl).purchase({value: this.buyerBalance}))
   //     .emit(this.shotgun, "Purchased")
-  //     .withArgs(this.David.address)
+  //     .withArgs(this.Carl.address)
   // })
 
   // it("Claiming proportion failed: caller is not registered", async () => {
-  //   await expect(this.shotgun.connect(this.David).claimProportion())
+  //   await expect(this.shotgun.connect(this.Carl).claimProportion())
   //     .to.revertedWith("Shotgun: caller is not registered.")
   // })
 
@@ -397,10 +396,18 @@ describe("DibbsTests", function() {
     await this.shotgun.connect(this.dibbsAdmin).startAuction()
   })
 
-  it("Purchasing by David succeeded", async () => {
-    await expect(this.shotgun.connect(this.David).purchase({value: this.buyerBalance}))
+  it("Pass 2 month", async () => {
+    await advanceTime(60 * 24 * 3600);
+  })
+
+  it("Purchasing by Carl succeeded", async () => {
+    await expect(this.shotgun.connect(this.Carl).purchase({value: this.buyerBalance}))
       .emit(this.shotgun, "Purchased")
-      .withArgs(this.David.address)
+      .withArgs(this.Carl.address)
+  })
+
+  it("Pass 1 month", async () => {
+    await advanceTime(30 * 24 * 3600);
   })
 
   it("Claiming proportion succeeded by Alice", async () => {
@@ -411,13 +418,7 @@ describe("DibbsTests", function() {
 
   it("Claiming proportion succeeded by Bob", async () => {
     await expect(this.shotgun.connect(this.Bob).claimProportion())
-      .emit(this.shotgun, "ProportionClaimed")
+      .emit(this.shotgun, "FractionsRefunded")
       .withArgs(this.Bob.address)
-  })
-  
-  it("Claiming proportion succeeded by Carl", async () => {
-    await expect(this.shotgun.connect(this.Carl).claimProportion())
-      .emit(this.shotgun, "ProportionClaimed")
-      .withArgs(this.Carl.address)
   })
 })
