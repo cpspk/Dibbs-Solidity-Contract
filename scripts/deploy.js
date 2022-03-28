@@ -19,6 +19,11 @@ async function main() {
     "https://dibbs1155/"
   );
   console.log("DibbsERC1155 Address: ", dibbsERC1155.address);
+
+  const Shotgun = await ethers.getContractFactory("Shotgun");
+  const shotgun = await Shotgun.deploy(dibbsERC1155.address);
+  console.log("Shotgun address:", shotgun.address);
+
 }
 
 main()

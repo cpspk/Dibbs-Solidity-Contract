@@ -15,6 +15,18 @@ interface IDibbsERC1155 is IERC1155 {
     ) external;
 
     /**
+     * @dev transfer fractions to a certain address
+     * @param to owner address
+     * @param _tokenId token id
+     * @param _amount fraction amount
+     */
+    function transferFractions(
+        address to,
+        uint256 _tokenId,
+        uint256 _amount
+    ) external;
+
+    /**
      * @dev burn a token
      * @param _tokenId a token type id
      */

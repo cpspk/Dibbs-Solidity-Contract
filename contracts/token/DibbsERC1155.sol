@@ -38,9 +38,7 @@ contract DibbsERC1155 is
 
     event FractionsTransferred(address from, address to, uint256 id, uint256 amount);
 
-    event FractionsLocked(address from, uint256 id, uint256 amount);
-
-    event Burnt(uint256 id);
+    event FractionsBurnt(uint256 id);
 
     constructor(
         IDibbsERC721Upgradeable _dibbsERC721Upgradeable,
@@ -118,46 +116,21 @@ contract DibbsERC1155 is
         emit Fractionalized(to, _tokenId);
     }
 
-    function lockFractions(
-        uint256 _tokenId,
-        uint256 _amount
-    ) external nonReentrant {
-        require(
-           balanceOf(_msgSender(), _tokenId) >= _amount,
-            "DibbsERC1155: caller doesn't have the amount of tokens"
-        );
-        uint256 balanceBefore = balanceOf(_msgSender(), _tokenId);
-        safeTransferFrom(_msgSender(), address(this), _tokenId, _amount, EMPTY);
-        uint256 balanceafter = balanceOf(_msgSender(), _tokenId);
-
-        require(balanceBefore -  balanceafter == _amount,
-            "DibbsERC1155: token transfermation failed"
-        );
-
-        subFractions(_msgSender(), _tokenId, _amount);
-        addFractions(address(this), _tokenId, _amount);
-
-        if(balanceOf(_msgSender(), _tokenId) == 0) {
-            deleteOwnerFraction(_msgSender(), _tokenId);
-        }
-
-        emit FractionsLocked(
-            _msgSender(),
-            _tokenId,
-            _amount
-        );
-    }
-
+    /**
+     * @dev transfer fractions to a certain address
+     * @param to owner address
+     * @param _tokenId token id
+     * @param _amount fraction amount
+     */
     function transferFractions(
         address to,
         uint256 _tokenId,
         uint256 _amount
-    ) external nonReentrant {
+    ) external nonReentrant override {
         require(
            balanceOf(_msgSender(), _tokenId) >= _amount,
             "DibbsERC1155: caller doesn't have the amount of tokens"
         );
-        // TODO caller is owner?
         uint256 balanceBefore = balanceOf(_msgSender(), _tokenId);
         safeTransferFrom(_msgSender(), to, _tokenId, _amount, EMPTY);
         uint256 balanceafter = balanceOf(_msgSender(), _tokenId);
@@ -192,7 +165,7 @@ contract DibbsERC1155 is
         "DibbsERC1155: the contract doesn't have enoungh amount of fractions");
 
         _burn(address(this), _tokenId, FRACTION_AMOUNT);
-        emit Burnt(_tokenId);
+        emit FractionsBurnt(_tokenId);
     }
 
     function _setTokenURI(uint256 _tokenId) override virtual internal {
