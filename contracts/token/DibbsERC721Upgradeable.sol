@@ -31,7 +31,7 @@ contract DibbsERC721Upgradeable is
     }
 
     ///@dev id => card token
-    mapping(uint256 => Card) public override cards;
+    mapping(uint256 => Card) public cards;
 
     ///@dev Is the card token with id existed or not?
     mapping(string => bool) public exists;
@@ -53,7 +53,7 @@ contract DibbsERC721Upgradeable is
     event TokenTransferred(uint256 id);
 
     /**
-     * @dev initialize upgraddeable contract uses initialize() instead of constructor
+     * @dev initialize upgraddeable contract: uses initialize() instead of constructor
      */
     function initialize() initializer public {
         __ERC721_init("Admin", "AD");
@@ -88,33 +88,8 @@ contract DibbsERC721Upgradeable is
         cards[id].owner = newowner;
     }
 
-    function getTokenOwner(uint256 id) public view override onlyValidToken(id) returns (address) {
-        return cards[id].owner;
-    }
-
     function isTokenLocked(uint256 id) external view override onlyValidToken(id) returns (bool) {
         return cards[id].owner == address(this);
-    }
-
-    /**
-     * @dev set card token struct when new token is minted
-     * @param owner current token owner
-     * @param name card token name
-     * @param grade card token grade
-     * @param serial card token serial id (Psa indentifier)
-     * @param id card token id
-     */
-    function setCard(address owner, string calldata name, string calldata grade, string calldata serial, uint256 id) external override {
-        string memory symbol = getSysmbol(name, grade, serial);
-        exists[symbol] = true;
-
-        cards[id] = Card(
-            owner,
-            name,
-            grade,
-            serial,
-            false //fractionalized
-        );
     }
 
     /**
@@ -256,7 +231,6 @@ contract DibbsERC721Upgradeable is
     ) internal override(ERC721Upgradeable) {
         ERC721Upgradeable._beforeTokenTransfer(from, to, tokenId);
     }
-
 
     function tokenURI(uint256 tokenId) public view virtual override(ERC721Upgradeable, ERC721URIStorageUpgradeable) returns (string memory ) {
         return ERC721URIStorageUpgradeable.tokenURI(tokenId);

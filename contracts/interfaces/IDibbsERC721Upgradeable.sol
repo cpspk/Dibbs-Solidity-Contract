@@ -4,25 +4,6 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 
 interface IDibbsERC721Upgradeable is IERC721Upgradeable {
-    ///@dev struct card
-    function cards(uint256 id) external returns (
-        address,
-        string calldata,
-        string calldata,
-        string calldata,
-        bool
-    );
-
-    /**
-     * @dev set card token struct when new token is minted
-     * @param owner current token owner
-     * @param name card token name
-     * @param grade card token grade
-     * @param serial card token serial id (Psa indentifier)
-     * @param id card token id
-     */
-    function setCard(address owner, string calldata name, string calldata grade, string calldata serial, uint256 id) external;
-
     /**
      * @dev (To be called externally) setter function: set true when card is fractionalized
      * @param id the token id
@@ -36,8 +17,6 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
     function getFractionStatus(uint256 id) external returns (bool);
 
     function setNewTokenOwner(address newowner, uint256 id) external;
-
-    function getTokenOwner(uint256 id) external returns (address);
 
     function isTokenLocked(uint256 id) external view returns (bool);
 

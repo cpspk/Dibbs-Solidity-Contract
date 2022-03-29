@@ -30,11 +30,13 @@ contract DibbsERC1155 is
 
     bytes constant EMPTY = "";
 
-    ///@dev tokenId => owner => balance
-    mapping(uint256 => mapping(address => uint256)) ownerBalace;
+    ///@dev owner => token id => balance
+    mapping(address => mapping(uint256 => uint256)) internal ownerBalace;
 
     ///@dev events
     event Fractionalized(address to, uint256 tokenId);
+
+    event Defractionalized(address to, uint256 tokenId);
 
     event FractionsTransferred(address from, address to, uint256 id, uint256 amount);
 
@@ -62,7 +64,7 @@ contract DibbsERC1155 is
      * @param amount to be added
      */
     function addFractions(address to, uint256 tokenId, uint256 amount) public override {
-        ownerBalace[tokenId][to] += amount;
+        ownerBalace[to][tokenId] = ownerBalace[to][tokenId].add(amount);
     }
     
     /**
@@ -72,25 +74,7 @@ contract DibbsERC1155 is
      * @param amount to be subtracted
      */
     function subFractions(address to, uint256 tokenId, uint256 amount) public override {
-        ownerBalace[tokenId][to] -= amount;
-    }
-
-    /**
-     * @dev delete a mapping data of owner
-     * @param to owner address
-     * @param tokenId token id
-     */
-    function deleteOwnerFraction(address to, uint256 tokenId) public override {
-        delete ownerBalace[tokenId][to];
-    }
-
-    /**
-     * @dev get a current balance of an owner
-     * @param to owner address
-     * @param tokenId token id
-     */
-    function getFractions(address to, uint256 tokenId) public view override returns (uint256) {
-        return ownerBalace[tokenId][to];
+        ownerBalace[to][tokenId] = ownerBalace[to][tokenId].sub(amount);
     }
 
     /**
@@ -111,9 +95,30 @@ contract DibbsERC1155 is
         _mint(to, _tokenId, FRACTION_AMOUNT, "");
         _setTokenURI(_tokenId);
 
-        ownerBalace[_tokenId][to] = FRACTION_AMOUNT;
+        ownerBalace[to][_tokenId] = FRACTION_AMOUNT;
 
         emit Fractionalized(to, _tokenId);
+    }
+
+    /**
+     * @notice defractionalize fractions
+     * @dev if a user has 1.0 tokens, he/she can defractionalize them. If all the fractions are sent, it will be burnt and contract sends a NFT related to the fractions.
+     * @param _tokenId token type id
+     */
+    function defractionalize(uint256 _tokenId) external override {
+        require(balanceOf(msg.sender, _tokenId) == FRACTION_AMOUNT, "DibbsERC1155: insufficient fraction balance");
+        
+        safeTransferFrom(msg.sender, address(this), _tokenId, FRACTION_AMOUNT, '');
+        require(balanceOf(msg.sender, _tokenId) == 0, "DibbsERC1155: transferring fractions didn't work properly.");
+
+        ownerBalace[msg.sender][_tokenId] = 0;
+
+        burnFractions(_tokenId);
+
+        dibbsERC721Upgradeable.safeTransferFrom(address(this), msg.sender, _tokenId);
+        dibbsERC721Upgradeable.setNewTokenOwner(msg.sender, _tokenId);
+
+        emit Defractionalized(msg.sender, _tokenId);
     }
 
     /**
@@ -128,26 +133,22 @@ contract DibbsERC1155 is
         uint256 _amount
     ) external nonReentrant override {
         require(
-           balanceOf(_msgSender(), _tokenId) >= _amount,
+           balanceOf(msg.sender, _tokenId) >= _amount,
             "DibbsERC1155: caller doesn't have the amount of tokens"
         );
-        uint256 balanceBefore = balanceOf(_msgSender(), _tokenId);
-        safeTransferFrom(_msgSender(), to, _tokenId, _amount, EMPTY);
-        uint256 balanceafter = balanceOf(_msgSender(), _tokenId);
+        uint256 balanceBefore = balanceOf(msg.sender, _tokenId);
+        safeTransferFrom(msg.sender, to, _tokenId, _amount, EMPTY);
+        uint256 balanceafter = balanceOf(msg.sender, _tokenId);
 
         require(balanceBefore -  balanceafter == _amount,
-            "DibbsERC1155: token transfermation failed"
+            "DibbsERC1155: transferring fractions didn't work properly."
         );
 
-        subFractions(_msgSender(), _tokenId, _amount);
+        subFractions(msg.sender, _tokenId, _amount);
         addFractions(to, _tokenId, _amount);
 
-        if(balanceOf(_msgSender(), _tokenId) == 0 && _msgSender() != address(this)) {
-            deleteOwnerFraction(_msgSender(), _tokenId);
-        }
-
         emit FractionsTransferred(
-            _msgSender(),
+            msg.sender,
             to,
             _tokenId,
             _amount

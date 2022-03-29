@@ -14,6 +14,13 @@ interface IDibbsERC1155 is IERC1155 {
         uint256 _tokenId
     ) external;
 
+     /**
+     * @notice defractionalize fractions
+     * @dev if a user has 1.0 tokens, he/she can defractionalize them. If all the fractions are sent, it will be burnt and contract sends a NFT related to the fractions.
+     * @param _tokenId token type id
+     */
+    function defractionalize(uint256 _tokenId) external;
+
     /**
      * @dev transfer fractions to a certain address
      * @param to owner address
@@ -55,19 +62,5 @@ interface IDibbsERC1155 is IERC1155 {
      * @param amount to be subtracted
      */
     function subFractions(address to, uint256 tokenId, uint256 amount) external ;
-
-    /**
-     * @dev get a current balance of an owner
-     * @param to owner address
-     * @param tokenId token id
-     */
-    function getFractions(address to, uint256 tokenId) external returns (uint256);
-
-    /**
-     * @dev delete a mapping data of owner
-     * @param to owner address
-     * @param tokenId token id
-     */
-    function deleteOwnerFraction(address to, uint256 tokenId) external;
 
 }

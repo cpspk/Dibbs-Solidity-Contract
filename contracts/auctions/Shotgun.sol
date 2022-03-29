@@ -4,6 +4,8 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+
 import "hardhat/console.sol";
 
 import "../interfaces/IDibbsERC1155.sol";
@@ -11,9 +13,12 @@ import "../interfaces/IShotgun.sol";
 
 contract Shotgun is
     IShotgun,
+    ReentrancyGuard,
     ERC1155Holder,
     Ownable
 {
+  using SafeMath for uint256;
+
     /// @dev represent the status of Shotgun auction
     enum ShotgunStatus {
         FREE,
@@ -92,7 +97,7 @@ contract Shotgun is
 
     /// @dev check if auction is expired or not
     function isAuctionExpired() public view returns (bool) {
-        if(block.timestamp >= createdAt + AUCTION_DURATION)
+        if(block.timestamp >= createdAt.add(AUCTION_DURATION))//TODO use safeMath
             return true;
 
         return false;
@@ -114,7 +119,7 @@ contract Shotgun is
 
         tokenId = _tokenId;
 
-        for (uint i = 0; i < numberOfOwners; i++) {
+        for (uint i = 0; i < numberOfOwners; i = i.add(1)) {
             if (_otherOwners[i] == address(0)) continue;
             require(!isFractionOwner[_otherOwners[i]], "Shotgun: already registered owner");
             require(tokenAddr.balanceOf(_otherOwners[i], _tokenId) != 0, "Shotgun: the owner has no balance");
@@ -122,8 +127,9 @@ contract Shotgun is
             otherOwners.push(_otherOwners[i]);
             uint256 fractionAmount = tokenAddr.balanceOf(_otherOwners[i], _tokenId);
             ownerFractionBalance[_otherOwners[i]] = fractionAmount;
-            otherOwnersBalance += fractionAmount;
+            otherOwnersBalance = otherOwnersBalance.add(fractionAmount);
             tokenAddr.safeTransferFrom(_otherOwners[i], address(this), tokenId, fractionAmount, '');
+            tokenAddr.subFractions(_otherOwners[i], tokenId, fractionAmount);
             isFractionOwner[_otherOwners[i]] = true;
         }
 
@@ -139,7 +145,7 @@ contract Shotgun is
      */
     function transferForShotgun(
         uint256 _amount
-    ) external payable override {
+    ) external payable nonReentrant override {
         require(auctionStarter == address(0), "Shoutgun: auction starter already registered.");
         require(currentStatus == ShotgunStatus.FREE, "Shotgun: is ongoing now");
         require(msg.value > 0, "Shotgun: insufficient funds");
@@ -157,7 +163,8 @@ contract Shotgun is
         ownerFractionBalance[auctionStarter] = _amount;
         starterFractionBalance = _amount;
         starterEtherBalance = msg.value;
-        totalFractionBalance = starterFractionBalance + otherOwnersBalance;
+        totalFractionBalance = starterFractionBalance.add(otherOwnersBalance);
+        tokenAddr.subFractions(msg.sender, tokenId, _amount);
 
         currentStatus = ShotgunStatus.WAITING;
 
@@ -172,27 +179,28 @@ contract Shotgun is
         );
         createdAt = block.timestamp;
         currentStatus = ShotgunStatus.ONGOING;
-        totalPrice = starterEtherBalance * totalFractionBalance / otherOwnersBalance;
+        totalPrice = starterEtherBalance.mul(totalFractionBalance).div(otherOwnersBalance);
         
         emit AuctionStarted(createdAt, starterFractionBalance + otherOwnersBalance);
     }
 
     /// @dev purchse the locked fractions
-    function purchase() external payable override {
+    function purchase() external payable nonReentrant override {
         require(currentStatus == ShotgunStatus.ONGOING, "Shotgun: is not started yet.");
         require(!isAuctionExpired(), "Shotgun: already expired");
-        uint256 price = totalPrice *  starterFractionBalance / totalFractionBalance;
+        uint256 price = totalPrice.mul(starterFractionBalance).div(totalFractionBalance);
         require(msg.value >= price, "Shotgun: insufficient funds.");
 
-        uint256 amount = starterFractionBalance + ownerFractionBalance[msg.sender];
+        uint256 amount = starterFractionBalance.add(ownerFractionBalance[msg.sender]);
         tokenAddr.safeTransferFrom(address(this), msg.sender, tokenId, amount, '');
+        tokenAddr.addFractions(msg.sender, tokenId, amount);
 
         currentStatus = ShotgunStatus.OVER;
         emit Purchased(msg.sender);
     }
 
     /// @dev claim proportional amount of total price
-    function claimProportion() external override {
+    function claimProportion() external nonReentrant override {
         require(
             isAuctionExpired(),
             "Shotgun: is not over yet."
@@ -200,7 +208,7 @@ contract Shotgun is
         uint256 price;
         if (msg.sender == auctionStarter) {
             if (currentStatus == ShotgunStatus.OVER) {
-                price = totalPrice *  starterFractionBalance / totalFractionBalance + starterEtherBalance;
+                price = totalPrice.mul(starterFractionBalance).div(totalFractionBalance).add(starterEtherBalance);
                 (bool success, ) = payable(auctionStarter).call{value: price}("");
                 require(success, "Shotgun: refunding is not successful.");
                 
@@ -210,9 +218,11 @@ contract Shotgun is
                     address(this),
                     auctionStarter,
                     tokenId,
-                    starterFractionBalance + otherOwnersBalance,
+                    starterFractionBalance.add(otherOwnersBalance),
                     ''
                 );
+
+                tokenAddr.addFractions(auctionStarter, tokenId, starterFractionBalance.add(otherOwnersBalance));
                 
                 emit FractionsRefunded(msg.sender);
             }
@@ -228,10 +238,12 @@ contract Shotgun is
                     ''
                 );
 
+                tokenAddr.addFractions(msg.sender, tokenId, ownerFractionBalance[msg.sender]);
+
                 emit FractionsRefunded(msg.sender);
             } else {
                 uint256 amount = ownerFractionBalance[msg.sender];
-                price = starterEtherBalance *  amount / starterFractionBalance;
+                price = starterEtherBalance.mul(amount).div(starterFractionBalance);
                 (bool success, ) = payable(msg.sender).call{value: price}("");
                 require(success, "Shotgun: refunding is not successful.");
 
@@ -266,7 +278,7 @@ contract Shotgun is
     * @param _receiver address of recepient
     * @param _amount amount of ether to with
     */
-    function withdrawTo(address _receiver, uint256 _amount) external onlyOwner override {
+    function withdrawTo(address _receiver, uint256 _amount) external onlyOwner nonReentrant override {
         require(_receiver != address(0) && _receiver != address(this));
         require(_amount > 0 && _amount <= address(this).balance);
         (bool sent, ) = payable(_receiver).call{value: _amount}("");
