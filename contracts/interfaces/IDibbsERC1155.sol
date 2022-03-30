@@ -22,6 +22,12 @@ interface IDibbsERC1155 is IERC1155 {
     function defractionalize(uint256 _tokenId) external;
 
     /**
+     * @dev withdraw the NFT after defractionalzing.
+     * @param _tokenId defractionalized token id.
+     */
+    function withdrawNFTAfterDefractionalizing(uint256 _tokenId) external;
+
+    /**
      * @dev transfer fractions to a certain address
      * @param to owner address
      * @param _tokenId token id

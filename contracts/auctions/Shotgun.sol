@@ -61,7 +61,7 @@ contract Shotgun is
     uint256 public totalFractionBalance;
 
     /// @dev auction start date
-    uint256 public createdAt;
+    uint256 public startedAt;
 
     ///@dev total pric of fractions for auction
     uint256 public totalPrice;
@@ -80,7 +80,7 @@ contract Shotgun is
 
     event TransferredForShotgun(address owner, address tokenAddr, uint256 id, uint256 amount);
 
-    event AuctionStarted(uint256 createdAt, uint256 totalAmount);
+    event AuctionStarted(uint256 startedAt, uint256 totalAmount);
 
     event Purchased(address purchaser);
 
@@ -100,7 +100,7 @@ contract Shotgun is
 
     /// @dev check if auction is expired or not
     function isAuctionExpired() public view returns (bool) {
-        if(block.timestamp >= createdAt.add(AUCTION_DURATION))//TODO use safeMath
+        if(block.timestamp >= startedAt.add(AUCTION_DURATION))
             return true;
 
         return false;
@@ -180,11 +180,11 @@ contract Shotgun is
             currentStatus == ShotgunStatus.WAITING && isOwnerRegistered,
             "Shotgun: is not ready now."
         );
-        createdAt = block.timestamp;
+        startedAt = block.timestamp;
         currentStatus = ShotgunStatus.ONGOING;
         totalPrice = starterEtherBalance.mul(totalFractionBalance).div(otherOwnersBalance);
         
-        emit AuctionStarted(createdAt, starterFractionBalance + otherOwnersBalance);
+        emit AuctionStarted(startedAt, starterFractionBalance + otherOwnersBalance);
     }
 
     /// @dev purchse the locked fractions
@@ -275,7 +275,7 @@ contract Shotgun is
         claimed[auctionStarter] =  false;
         auctionStarter = address(0);
         currentStatus = ShotgunStatus.FREE;
-        createdAt = 0;
+        startedAt = 0;
         isOwnerRegistered = false;
         totalFractionBalance = 0;
         starterFractionBalance = 0;
