@@ -33,6 +33,9 @@ contract Shotgun is
     /// @dev fractionOwner address => balance
     mapping(address => uint256) ownerFractionBalance;
 
+    /// @dev represent an owner claimedd his prooprtion or not
+    mapping(address => bool) claimed;
+
     /// @dev current shotgun status
     ShotgunStatus public currentStatus;
 
@@ -205,6 +208,9 @@ contract Shotgun is
             isAuctionExpired(),
             "Shotgun: is not over yet."
         );
+        require(!claimed[msg.sender], "Shotgun: already claimed owner");
+        claimed[msg.sender] = true;
+
         uint256 price;
         if (msg.sender == auctionStarter) {
             if (currentStatus == ShotgunStatus.OVER) {
@@ -223,7 +229,6 @@ contract Shotgun is
                 );
 
                 tokenAddr.addFractions(auctionStarter, tokenId, starterFractionBalance.add(otherOwnersBalance));
-                
                 emit FractionsRefunded(msg.sender);
             }
         } else {
@@ -262,9 +267,13 @@ contract Shotgun is
         ///@dev initialize state variables for next auction.
         uint len = otherOwners.length;
         for (uint i = 0; i < len; i++) {
-            isFractionOwner[otherOwners[i]] = false; 
+            isFractionOwner[otherOwners[i]] = false;
+            claimed[otherOwners[i]] = false;
         }
         delete otherOwners;
+
+        claimed[auctionStarter] =  false;
+        auctionStarter = address(0);
         currentStatus = ShotgunStatus.FREE;
         createdAt = 0;
         isOwnerRegistered = false;

@@ -96,7 +96,7 @@ describe("DibbsTests", function() {
     .withArgs(this.Alice.address, "Messi shot SPA10", "SPA10", "126", this.tokenIds[3])
   })
 
-  it("Transferring token to contract fails: caller doesnt have the token with id", async () => {
+  it("Transferring token to contract fails: caller doesn't have the token with id", async () => {
     await expect(this.dibbsERC721Upgradeable.connect(this.Carl).transferToken(this.tokenIds[0]))
       .to.revertedWith("DibbsERC721Upgradeable: Caller is not the owner of the token")
   })
@@ -107,7 +107,6 @@ describe("DibbsTests", function() {
       .withArgs(this.tokenIds[0])
     
     expect(await this.dibbsERC721Upgradeable.ownerOf(this.tokenIds[0])).to.equal(this.dibbsERC721Upgradeable.address)
-    expect(await this.dibbsERC721Upgradeable.getTokenOwner(this.tokenIds[0])).to.equal(this.dibbsERC721Upgradeable.address)
   })
 
   it("Transferring token to contract succeeds", async () => {
@@ -116,7 +115,6 @@ describe("DibbsTests", function() {
       .withArgs(this.tokenIds[1])
     
     expect(await this.dibbsERC721Upgradeable.ownerOf(this.tokenIds[1])).to.equal(this.dibbsERC721Upgradeable.address)
-    expect(await this.dibbsERC721Upgradeable.getTokenOwner(this.tokenIds[1])).to.equal(this.dibbsERC721Upgradeable.address)
   })
 
   it("Transferring token to contract succeeds", async () => {
@@ -125,7 +123,6 @@ describe("DibbsTests", function() {
       .withArgs(this.tokenIds[2])
     
     expect(await this.dibbsERC721Upgradeable.ownerOf(this.tokenIds[2])).to.equal(this.dibbsERC721Upgradeable.address)
-    expect(await this.dibbsERC721Upgradeable.getTokenOwner(this.tokenIds[2])).to.equal(this.dibbsERC721Upgradeable.address)
   })
 
   it("Transferring token to contract fails: caller doesnt have the token with id", async () => {
@@ -175,7 +172,8 @@ describe("DibbsTests", function() {
 
   it("Locking fractions into smart contract failed", async () => {
     const amount = ethers.BigNumber.from("1000000000000000000")
-    await expect(this.dibbsERC1155.connect(this.Alice).lockFractions(
+    await expect(this.dibbsERC1155.connect(this.Alice).transferFractions(
+      this.dibbsERC1155.address,
       this.tokenIds[0],
       amount
     )).to.revertedWith("DibbsERC1155: caller doesn't have the amount of tokens")
@@ -183,11 +181,12 @@ describe("DibbsTests", function() {
 
   it("Locking fractions into smart contract succeeds", async () => {
     const amount = ethers.BigNumber.from("10000000000000000")
-    await expect(this.dibbsERC1155.connect(this.Alice).lockFractions(
+    await expect(this.dibbsERC1155.connect(this.Alice).transferFractions(
+      this.dibbsERC1155.address,
       this.tokenIds[0],
       amount
-    )).emit(this.dibbsERC1155, "FractionsLocked")
-      .withArgs(this.Alice.address, this.tokenIds[0], amount)
+    )).emit(this.dibbsERC1155, "FractionsTransferred")
+      .withArgs(this.Alice.address, this.dibbsERC1155.address, this.tokenIds[0], amount)
   })
 
   it("Transferring fractions to Bob succeeds", async () => {
@@ -270,7 +269,7 @@ describe("DibbsTests", function() {
     )).to.revertedWith("Shotgun: already registered owner")
   })
 
-  it("Registering fraction other two owners succeeds", async () => {
+  it("Registering other two fraction owners succeeds", async () => {
     const fractionOwners = [this.Bob.address]
     await this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
     await this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
@@ -371,7 +370,7 @@ describe("DibbsTests", function() {
     await this.shotgun.connect(this.dibbsAdmin).initialize()
   })
 
-  it("Registering fraction other two owners succeeds", async () => {
+  it("Registering two fraction owners succeeds", async () => {
     const fractionOwners = [this.Bob.address, this.Carl.address]
     await this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
     await this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
