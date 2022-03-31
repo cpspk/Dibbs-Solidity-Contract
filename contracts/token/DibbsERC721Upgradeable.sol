@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
 import "../interfaces/IDibbsERC721Upgradeable.sol";
+import "../interfaces/IDibbsERC1155.sol";
 
 contract DibbsERC721Upgradeable is
     IDibbsERC721Upgradeable,
@@ -23,7 +24,6 @@ contract DibbsERC721Upgradeable is
 
     ///@dev card token info
     struct Card {
-        address owner;
         string name;
         string grade;
         string serial;
@@ -42,6 +42,9 @@ contract DibbsERC721Upgradeable is
     ///@dev dibbs admins
     address public dibbsAdmin;
 
+    ///@dev IDibbsERC1155 instance
+    IDibbsERC1155 public dibbsERC1155;
+
     ///@dev change master minter event
     event DibbsAdminChanged(address prevMinter, address newMinter);
 
@@ -51,6 +54,8 @@ contract DibbsERC721Upgradeable is
     event Burnt(uint256 id);
 
     event TokenTransferred(uint256 id);
+
+    event DefractionalizedNFTWithdrawn(address to, uint256 tokenId);
 
     /**
      * @dev initialize upgraddeable contract: uses initialize() instead of constructor
@@ -84,12 +89,8 @@ contract DibbsERC721Upgradeable is
         cards[id].fractionalized = true;
     }
 
-    function setNewTokenOwner(address newowner, uint256 id) public override onlyValidToken(id) {
-        cards[id].owner = newowner;
-    }
-
     function isTokenLocked(uint256 id) external view override onlyValidToken(id) returns (bool) {
-        return cards[id].owner == address(this);
+        return ownerOf(id) == address(this);
     }
 
     /**
@@ -119,7 +120,6 @@ contract DibbsERC721Upgradeable is
         exists[symbol] = true;
 
         cards[id] = Card(
-            _to,
             _name,
             _grade,
             _serial,
@@ -159,9 +159,16 @@ contract DibbsERC721Upgradeable is
             "DibbsERC721Upgradeable: not transferred successfully"
         );
 
-        setNewTokenOwner(address(this), _tokenId);
-
         emit TokenTransferred(_tokenId);
+    }
+    
+    function setDibbsERC1155Addr(address addr) external override {
+        dibbsERC1155 = IDibbsERC1155(addr);
+    }
+
+    function withdraw(address to, uint256 tokenId) external override {
+      require(msg.sender == address(dibbsERC1155), "DibbsERC721Upgradeable: caller is not dibbsERC1155 contract");
+      _transfer(address(this), to, tokenId);
     }
 
     /**

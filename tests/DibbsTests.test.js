@@ -125,6 +125,14 @@ describe("DibbsTests", function() {
     expect(await this.dibbsERC721Upgradeable.ownerOf(this.tokenIds[2])).to.equal(this.dibbsERC721Upgradeable.address)
   })
 
+  it("Transferring token to contract succeeds", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).transferToken(this.tokenIds[3]))
+      .emit(this.dibbsERC721Upgradeable, "TokenTransferred")
+      .withArgs(this.tokenIds[3])
+    
+    expect(await this.dibbsERC721Upgradeable.ownerOf(this.tokenIds[3])).to.equal(this.dibbsERC721Upgradeable.address)
+  })
+
   it("Transferring token to contract fails: caller doesnt have the token with id", async () => {
     await expect(this.dibbsERC721Upgradeable.connect(this.Alice).transferToken(this.tokenIds[0]))
       .to.revertedWith("DibbsERC721Upgradeable: Caller is not the owner of the token")
@@ -161,6 +169,14 @@ describe("DibbsTests", function() {
       this.tokenIds[2],
     )).emit(this.dibbsERC1155, "Fractionalized")
       .withArgs(this.Alice.address, this.tokenIds[2])
+  })
+
+  it("Fractionalizing to a user succeeds: to Alice", async () => {
+    await expect(this.dibbsERC1155.connect(this.dibbsAdmin).fractionalize(
+      this.Alice.address,
+      this.tokenIds[3],
+    )).emit(this.dibbsERC1155, "Fractionalized")
+      .withArgs(this.Alice.address, this.tokenIds[3])
   })
 
   it("Fractionalizing to a user fails: tokens are already minted", async () => {
@@ -372,6 +388,8 @@ describe("DibbsTests", function() {
 
   it("Registering two fraction owners succeeds", async () => {
     const fractionOwners = [this.Bob.address, this.Carl.address]
+    // const amount = await this.dibbsERC1155.balanceOf(this.Carl.address, this.tokenIds[2])
+    // console.log(amount.toString())
     await this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
     await this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
     await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
@@ -419,5 +437,44 @@ describe("DibbsTests", function() {
     await expect(this.shotgun.connect(this.Bob).claimProportion())
       .emit(this.shotgun, "FractionsRefunded")
       .withArgs(this.Bob.address)
+  })
+
+  it("Defractionalizing fraction from Carl failed: insufficient fractions", async () => {
+    await expect(this.dibbsERC1155.connect(this.Carl).defractionalize(this.tokenIds[2]))
+      .to.revertedWith("DibbsERC1155: insufficient fraction balance")
+  })
+
+  it("Defractionalizing fraction from Alice succeeded", async () => {
+    await expect(this.dibbsERC1155.connect(this.Alice).defractionalize(this.tokenIds[3]))
+      .emit(this.dibbsERC1155, "Defractionalized")
+      .withArgs(this.Alice.address, this.tokenIds[3])
+  })
+
+  it("Withdrawing a NFT after defractionalizing failed: Bob is not the fraction owner with id 3", async () => {
+    await expect(this.dibbsERC1155.connect(this.Bob).withdrawNFTAfterDefractionalizing(this.tokenIds[3]))
+      .to.revertedWith("DibbsERC1155: caller is not defractionalizer or tokend id is not the defractionalized one or already withdrew.")
+  })
+
+  it("Withdrawing a NFT after defractionalizing failed: Alice can't withdraw the NFT with id 2", async () => {
+    await expect(this.dibbsERC1155.connect(this.Alice).withdrawNFTAfterDefractionalizing(this.tokenIds[2]))
+      .to.revertedWith("DibbsERC1155: caller is not defractionalizer or tokend id is not the defractionalized one or already withdrew.")
+  })
+
+  it("Withdrawing a NFT before defractionalizing failed", async () => {
+    await expect(this.dibbsERC721Upgradeable.connect(this.Alice).withdraw(this.Alice.address, this.tokenIds[3]))
+      .to.revertedWith("DibbsERC721Upgradeable: caller is not dibbsERC1155 contract")
+  })
+
+  it("Withdrawing a NFT after defractionalizing succeeded", async () => {
+    await expect(this.dibbsERC1155.connect(this.Alice).withdrawNFTAfterDefractionalizing(this.tokenIds[3]))
+      .emit(this.dibbsERC1155, "DefractionalizedNFTWithdrawn")
+      .withArgs(this.Alice.address, this.tokenIds[3])
+    
+    expect(await this.dibbsERC721Upgradeable.ownerOf(this.tokenIds[3])).to.equal(this.Alice.address)
+  })
+
+  it("Withdrawing a NFT after defractionalizing failed: Alice already withdrew the NFT", async () => {
+    await expect(this.dibbsERC1155.connect(this.Alice).withdrawNFTAfterDefractionalizing(this.tokenIds[3]))
+      .to.revertedWith("DibbsERC1155: caller is not defractionalizer or tokend id is not the defractionalized one or already withdrew.")
   })
 })

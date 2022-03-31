@@ -16,8 +16,6 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
     ///@dev get (true or false) whether a token with id fractionalized or not.
     function getFractionStatus(uint256 id) external returns (bool);
 
-    function setNewTokenOwner(address newowner, uint256 id) external;
-
     function isTokenLocked(uint256 id) external view returns (bool);
 
     /**
@@ -43,6 +41,10 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
     function transferToken(
         uint256 _tokenId
     ) external;
+
+    function withdraw(address to, uint256 tokenId) external;
+
+    function setDibbsERC1155Addr(address addr) external;
 
     /**
      * @dev burn nft: delete card info corresponding to tokenId

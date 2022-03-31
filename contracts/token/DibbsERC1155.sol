@@ -34,7 +34,7 @@ contract DibbsERC1155 is
     mapping(address => mapping(uint256 => uint256)) internal ownerBalace;
 
     ///@dev defractionalier => token type id => bool
-    mapping(address => mapping(uint256 => bool)) internal isDefractionalizer;
+    mapping(address => mapping(uint256 => bool)) internal isDefractionalized;
 
     ///@dev events
     event Fractionalized(address to, uint256 tokenId);
@@ -52,6 +52,7 @@ contract DibbsERC1155 is
         string memory _uri
     ) ERC1155Metadata_URI(_uri) ERC1155(_uri) {
         dibbsERC721Upgradeable = _dibbsERC721Upgradeable;
+        dibbsERC721Upgradeable.setDibbsERC1155Addr(address(this));
     }
 
     /**
@@ -113,7 +114,7 @@ contract DibbsERC1155 is
     function defractionalize(uint256 _tokenId) external override {
         require(balanceOf(msg.sender, _tokenId) == FRACTION_AMOUNT, "DibbsERC1155: insufficient fraction balance");
 
-        isDefractionalizer[msg.sender][_tokenId] = true;
+        isDefractionalized[msg.sender][_tokenId] = true;
         
         safeTransferFrom(msg.sender, address(this), _tokenId, FRACTION_AMOUNT, '');
         require(balanceOf(msg.sender, _tokenId) == 0, "DibbsERC1155: transferring fractions didn't work properly.");
@@ -129,15 +130,13 @@ contract DibbsERC1155 is
      * @dev withdraw the NFT after defractionalzing.
      * @param _tokenId defractionalized token id.
      */
-    function withdrawNFTAfterDefractionalizing(uint256 _tokenId) external override {
+    function withdrawNFTAfterDefractionalizing(uint256 _tokenId) external nonReentrant override {
         require(
-            isDefractionalizer[msg.sender][_tokenId],
-            "DibbsERC1155: caller is not defractionalizer or tokend id is not the defractionalized one's."
+            isDefractionalized[msg.sender][_tokenId],
+            "DibbsERC1155: caller is not defractionalizer or tokend id is not the defractionalized one or already withdrew."
         );
-        isDefractionalizer[msg.sender][_tokenId] = false;
-
-        dibbsERC721Upgradeable.safeTransferFrom(address(this), msg.sender, _tokenId);
-        dibbsERC721Upgradeable.setNewTokenOwner(msg.sender, _tokenId);
+        isDefractionalized[msg.sender][_tokenId] = false;
+        dibbsERC721Upgradeable.withdraw(msg.sender, _tokenId);
 
         emit DefractionalizedNFTWithdrawn(msg.sender, _tokenId);
     }
