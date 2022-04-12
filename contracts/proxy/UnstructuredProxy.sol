@@ -1,6 +1,5 @@
-// SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.4;
+// SPDX-License-Identifier: UNLICENSED
 
 import "@openzeppelin/contracts/proxy/Proxy.sol";
 
