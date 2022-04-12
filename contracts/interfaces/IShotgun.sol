@@ -4,11 +4,11 @@ pragma solidity ^0.8.0;
 interface IShotgun {
     /**
      * @dev register other fraction owners
-     * @param _otherOwners array of other owners' address
+     * @param _otherOwner array of other owners' address
      * @param _tokenId token if for auction
      */
     function registerOwnersWithTokenId(
-        address[] calldata _otherOwners,
+        address _otherOwner,
         uint256 _tokenId
     ) external;
 

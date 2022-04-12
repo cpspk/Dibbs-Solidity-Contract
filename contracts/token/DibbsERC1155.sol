@@ -33,7 +33,7 @@ contract DibbsERC1155 is
     ///@dev owner => token id => balance
     mapping(address => mapping(uint256 => uint256)) internal ownerBalace;
 
-    ///@dev defractionalier => token type id => bool
+    ///@dev defractionalizer => token type id => bool
     mapping(address => mapping(uint256 => bool)) internal isDefractionalized;
 
     ///@dev events
@@ -46,7 +46,7 @@ contract DibbsERC1155 is
     event FractionsTransferred(address from, address to, uint256 id, uint256 amount);
 
     event FractionsBurnt(uint256 id);
-
+    
     constructor(
         IDibbsERC721Upgradeable _dibbsERC721Upgradeable,
         string memory _uri
@@ -72,7 +72,7 @@ contract DibbsERC1155 is
     function addFractions(address to, uint256 tokenId, uint256 amount) public override {
         ownerBalace[to][tokenId] = ownerBalace[to][tokenId].add(amount);
     }
-    
+
     /**
      * @dev subtract amount balace of a owner
      * @param to owner address
@@ -98,7 +98,7 @@ contract DibbsERC1155 is
 
         dibbsERC721Upgradeable.setCardFractionalized(_tokenId);
 
-        _mint(to, _tokenId, FRACTION_AMOUNT, "");
+        _mint(to, _tokenId, FRACTION_AMOUNT, EMPTY);
         _setTokenURI(_tokenId);
 
         ownerBalace[to][_tokenId] = FRACTION_AMOUNT;

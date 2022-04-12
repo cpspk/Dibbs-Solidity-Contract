@@ -252,48 +252,39 @@ describe("DibbsTests", function() {
   })
   
   it("Registering fraction owners failed: only dibbs admin can register fraction owners for Shotgun auction", async () => {
-    const fractionOwners = [this.Alice.address, this.Bob.address]
+    const fractionOwner = this.Alice.address
     await expect(this.shotgun.connect(this.Carl).registerOwnersWithTokenId(
-      fractionOwners,
+      fractionOwner,
       this.tokenIds[1]
     )).to.revertedWith("Ownable: caller is not the owner")
   })
 
   it("Registering fraction owners failed: no fraction owners there", async () => {
-    const fractionOwners = []
+    const fractionOwner = ethers.constants.AddressZero
     await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
-      fractionOwners,
+      fractionOwner,
       this.tokenIds[1]
-    )).to.revertedWith("Shotgun: no fraction owners")
+    )).to.revertedWith("Shotgun: cannot register invalid address")
   })
 
-  it("Registering fraction owners succeeds", async () => {
-    const fractionOwners = [this.Carl.address, ethers.constants.AddressZero]
-    await this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
-    await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
-      fractionOwners,
-      this.tokenIds[1]
-    )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.tokenIds[1], 1)
-  })
-
-  it("Registering fraction owners fails: has already registered owner", async () => {
-    const fractionOwners = [this.Carl.address, this.Bob.address]
-    await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
-      fractionOwners,
-      this.tokenIds[1]
-    )).to.revertedWith("Shotgun: already registered owner")
-  })
-
-  it("Registering other two fraction owners succeeds", async () => {
-    const fractionOwners = [this.Bob.address]
+  it("Registering two fraction owners succeeds", async () => {
+    const fractionOwners = [this.Bob.address, this.Carl.address]
     await this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
     await this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
+    for (let i = 0; i < fractionOwners.length; i ++)
+      await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
+        fractionOwners[i],
+        this.tokenIds[1]
+      )).emit(this.shotgun, "OtherOwnersReginstered")
+        .withArgs(this.tokenIds[1], i + 1)
+  })
+  
+  it("Registering fraction owners fails: has already registered owner", async () => {
+    const fractionOwner = this.Carl.address
     await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
-      fractionOwners,
+      fractionOwner,
       this.tokenIds[1]
-    )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.tokenIds[1], 2)
+    )).to.revertedWith("Shotgun: already registered owner")
   })
 
   it("Transferring fractions and ethers for Shotgun auction failed: insufficient funds", async () => {
@@ -388,15 +379,14 @@ describe("DibbsTests", function() {
 
   it("Registering two fraction owners succeeds", async () => {
     const fractionOwners = [this.Bob.address, this.Carl.address]
-    // const amount = await this.dibbsERC1155.balanceOf(this.Carl.address, this.tokenIds[2])
-    // console.log(amount.toString())
     await this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
     await this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
-    await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
-      fractionOwners,
-      this.tokenIds[2]
-    )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.tokenIds[2], 2)
+    for (let i = 0; i < fractionOwners.length; i ++)
+      await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
+        fractionOwners[i],
+        this.tokenIds[2]
+      )).emit(this.shotgun, "OtherOwnersReginstered")
+        .withArgs(this.tokenIds[2], i + 1)
   })
 
   it("Transferring fractions and ethers as a auction starter for Shotgun auction succeeds", async () => {

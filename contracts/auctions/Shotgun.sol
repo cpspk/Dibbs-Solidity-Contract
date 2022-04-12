@@ -108,36 +108,27 @@ contract Shotgun is
     
     /**
      * @dev register other fraction owners
-     * @param _otherOwners array of other owners' address
+     * @param _otherOwner array of other owners' address
      * @param _tokenId token if for auction
      */
     function registerOwnersWithTokenId(
-        address[] calldata _otherOwners,
+        address _otherOwner,
         uint256 _tokenId
     ) external override onlyOwner {
+        require(_otherOwner != address(0), "Shotgun: cannot register invalid address");
         require(currentStatus == ShotgunStatus.FREE, "Shotgun: is ongoing now");
+        require(!isFractionOwner[_otherOwner], "Shotgun: already registered owner");
+        require(tokenAddr.balanceOf(_otherOwner, _tokenId) != 0, "Shotgun: the owner has no balance");
 
-        uint256 numberOfOwners = _otherOwners.length;
-        require(numberOfOwners != 0, "Shotgun: no fraction owners");
-
+        otherOwners.push(_otherOwner);
+        uint256 fractionAmount = tokenAddr.balanceOf(_otherOwner, _tokenId);
+        ownerFractionBalance[_otherOwner] = fractionAmount;
+        otherOwnersBalance = otherOwnersBalance.add(fractionAmount);
+        tokenAddr.safeTransferFrom(_otherOwner, address(this), _tokenId, fractionAmount, '');
+        tokenAddr.subFractions(_otherOwner, _tokenId, fractionAmount);
+        isFractionOwner[_otherOwner] = true;
+        isOwnerRegistered = true;
         tokenId = _tokenId;
-
-        for (uint i = 0; i < numberOfOwners; i = i.add(1)) {
-            if (_otherOwners[i] == address(0)) continue;
-            require(!isFractionOwner[_otherOwners[i]], "Shotgun: already registered owner");
-            require(tokenAddr.balanceOf(_otherOwners[i], _tokenId) != 0, "Shotgun: the owner has no balance");
-
-            otherOwners.push(_otherOwners[i]);
-            uint256 fractionAmount = tokenAddr.balanceOf(_otherOwners[i], _tokenId);
-            ownerFractionBalance[_otherOwners[i]] = fractionAmount;
-            otherOwnersBalance = otherOwnersBalance.add(fractionAmount);
-            tokenAddr.safeTransferFrom(_otherOwners[i], address(this), tokenId, fractionAmount, '');
-            tokenAddr.subFractions(_otherOwners[i], tokenId, fractionAmount);
-            isFractionOwner[_otherOwners[i]] = true;
-        }
-
-        if (otherOwners.length != 0)
-            isOwnerRegistered = true;
 
         emit OtherOwnersReginstered(_tokenId, otherOwners.length);
     }
