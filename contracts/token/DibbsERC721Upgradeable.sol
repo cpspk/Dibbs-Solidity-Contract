@@ -46,7 +46,7 @@ contract DibbsERC721Upgradeable is
     IDibbsERC1155 public dibbsERC1155;
 
     ///@dev change master minter event
-    event DibbsAdminChanged(address prevMinter, address newMinter);
+    event DibbsAdminChanged(address prevAdmin, address newAdmin);
 
     ///@dev mint event
     event Minted(address to, string name, string grade, string serial, uint256 id);

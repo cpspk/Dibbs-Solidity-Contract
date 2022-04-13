@@ -22,19 +22,22 @@ contract DibbsERC1155 is
 {
     using SafeMath for uint256;
 
-    ///@dev Fraction amount
-    uint256 public constant FRACTION_AMOUNT = 10000000000000000;
+    ///@dev owner => token id => balance
+    mapping(uint256 => mapping(address => uint256)) public ownerBalace;
+
+    ///@dev defractionalizer => token type id => bool
+    mapping(address => mapping(uint256 => bool)) internal isDefractionalized;
 
     ///@dev IDibbsERC721Upgradeable instance
     IDibbsERC721Upgradeable public dibbsERC721Upgradeable;
 
+    ///@dev Dibbs admin address
+    address public dibbsAdmin;
+
+    ///@dev Fraction amount
+    uint256 public constant FRACTION_AMOUNT = 10000000000000000;
+
     bytes constant EMPTY = "";
-
-    ///@dev owner => token id => balance
-    mapping(address => mapping(uint256 => uint256)) internal ownerBalace;
-
-    ///@dev defractionalizer => token type id => bool
-    mapping(address => mapping(uint256 => bool)) internal isDefractionalized;
 
     ///@dev events
     event Fractionalized(address to, uint256 tokenId);
@@ -46,6 +49,8 @@ contract DibbsERC1155 is
     event FractionsTransferred(address from, address to, uint256 id, uint256 amount);
 
     event FractionsBurnt(uint256 id);
+
+    event DibbsAdminChanged(address prevAdmin, address newAdmin);
     
     constructor(
         IDibbsERC721Upgradeable _dibbsERC721Upgradeable,
@@ -53,6 +58,7 @@ contract DibbsERC1155 is
     ) ERC1155Metadata_URI(_uri) ERC1155(_uri) {
         dibbsERC721Upgradeable = _dibbsERC721Upgradeable;
         dibbsERC721Upgradeable.setDibbsERC1155Addr(address(this));
+        dibbsAdmin = msg.sender;
     }
 
     /**
@@ -70,7 +76,7 @@ contract DibbsERC1155 is
      * @param amount to be added
      */
     function addFractions(address to, uint256 tokenId, uint256 amount) public override {
-        ownerBalace[to][tokenId] = ownerBalace[to][tokenId].add(amount);
+        ownerBalace[tokenId][to] = ownerBalace[tokenId][to].add(amount);
     }
 
     /**
@@ -80,7 +86,7 @@ contract DibbsERC1155 is
      * @param amount to be subtracted
      */
     function subFractions(address to, uint256 tokenId, uint256 amount) public override {
-        ownerBalace[to][tokenId] = ownerBalace[to][tokenId].sub(amount);
+        ownerBalace[tokenId][to] = ownerBalace[tokenId][to].sub(amount);
     }
 
     /**
@@ -91,7 +97,8 @@ contract DibbsERC1155 is
     function fractionalize(
         address to,
         uint256 _tokenId
-    ) external override onlyOwner {
+    ) external override {
+        require(msg.sender == dibbsAdmin, "DibbsERC1155: only Dibbs admin can fractionalize.");
         require(to != address(0), "DibbsERC1155: invalid to address");
         require(!dibbsERC721Upgradeable.getFractionStatus(_tokenId), "DibbsERC1155: this token is already fractionalized");
         require(dibbsERC721Upgradeable.isTokenLocked(_tokenId), "DibbsERC1155: this token is not locked in contract");
@@ -101,7 +108,7 @@ contract DibbsERC1155 is
         _mint(to, _tokenId, FRACTION_AMOUNT, EMPTY);
         _setTokenURI(_tokenId);
 
-        ownerBalace[to][_tokenId] = FRACTION_AMOUNT;
+        ownerBalace[_tokenId][to] = FRACTION_AMOUNT;
 
         emit Fractionalized(to, _tokenId);
     }
@@ -119,7 +126,7 @@ contract DibbsERC1155 is
         safeTransferFrom(msg.sender, address(this), _tokenId, FRACTION_AMOUNT, '');
         require(balanceOf(msg.sender, _tokenId) == 0, "DibbsERC1155: transferring fractions didn't work properly.");
 
-        ownerBalace[msg.sender][_tokenId] = 0;
+        ownerBalace[_tokenId][msg.sender] = 0;
 
         burnFractions(_tokenId);
 
@@ -187,6 +194,22 @@ contract DibbsERC1155 is
 
         _burn(address(this), _tokenId, FRACTION_AMOUNT);
         emit FractionsBurnt(_tokenId);
+    }
+
+    /**
+     * @dev change master minter
+     * @param newAdmin address of new minter
+     */
+    function changeDibbsAdmin(address newAdmin) external virtual override onlyOwner {
+        require(newAdmin != address(0), "DibbsERC721Upgradeable: invalid address");
+
+        address prevAdmin = dibbsAdmin;
+        dibbsAdmin = newAdmin;
+        emit DibbsAdminChanged(prevAdmin, newAdmin);
+    }   
+
+    function getOwnerBalance(uint256 id, address owner) external view returns (uint256){
+        return ownerBalace[id][owner];
     }
 
     function _setTokenURI(uint256 _tokenId) override virtual internal {

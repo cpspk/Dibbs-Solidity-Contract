@@ -69,4 +69,9 @@ interface IDibbsERC1155 is IERC1155 {
      */
     function subFractions(address to, uint256 tokenId, uint256 amount) external ;
 
+    /**
+     * @dev change master minter
+     * @param newAdmin address of new minter
+     */
+    function changeDibbsAdmin(address newAdmin) external;
 }

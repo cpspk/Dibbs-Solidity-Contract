@@ -5,11 +5,12 @@ const { advanceTime } = require('../utils/lib');
 describe("DibbsTests", function() {
   before(async () => {
     const users = await ethers.getSigners()
-    const [dibbsAdmin, Alice, Bob, Carl] = users
+    const [dibbsAdmin, Alice, Bob, Carl, David] = users
     this.dibbsAdmin = dibbsAdmin
     this.Alice = Alice
     this.Bob = Bob
     this.Carl = Carl
+    this.David = David
     this.tokenIds = [0, 1, 2, 3]
     this.nftPrice = ethers.utils.parseEther("0.06")
     this.additional = ethers.utils.parseEther("0.00000000000000001")
@@ -147,8 +148,14 @@ describe("DibbsTests", function() {
     )).to.revertedWith("DibbsERC1155: invalid to address")
   })
 
+  it("Changing into a new admin succeeds", async () => {
+    await expect(this.dibbsERC1155.connect(this.dibbsAdmin).changeDibbsAdmin(this.Bob.address))
+      .emit(this.dibbsERC1155, "DibbsAdminChanged")
+      .withArgs(this.dibbsAdmin.address, this.Bob.address)
+  })
+
   it("Fractionalizing to a user succeeds: to Alice", async () => {
-    await expect(this.dibbsERC1155.connect(this.dibbsAdmin).fractionalize(
+    await expect(this.dibbsERC1155.connect(this.Bob).fractionalize(
       this.Alice.address,
       this.tokenIds[0],
     )).emit(this.dibbsERC1155, "Fractionalized")
@@ -156,7 +163,7 @@ describe("DibbsTests", function() {
   })
 
   it("Fractionalizing to a user succeeds: to Alice", async () => {
-    await expect(this.dibbsERC1155.connect(this.dibbsAdmin).fractionalize(
+    await expect(this.dibbsERC1155.connect(this.Bob).fractionalize(
       this.Alice.address,
       this.tokenIds[1],
     )).emit(this.dibbsERC1155, "Fractionalized")
@@ -164,7 +171,7 @@ describe("DibbsTests", function() {
   })
 
   it("Fractionalizing to a user succeeds: to Alice", async () => {
-    await expect(this.dibbsERC1155.connect(this.dibbsAdmin).fractionalize(
+    await expect(this.dibbsERC1155.connect(this.Bob).fractionalize(
       this.Alice.address,
       this.tokenIds[2],
     )).emit(this.dibbsERC1155, "Fractionalized")
@@ -172,7 +179,7 @@ describe("DibbsTests", function() {
   })
 
   it("Fractionalizing to a user succeeds: to Alice", async () => {
-    await expect(this.dibbsERC1155.connect(this.dibbsAdmin).fractionalize(
+    await expect(this.dibbsERC1155.connect(this.Bob).fractionalize(
       this.Alice.address,
       this.tokenIds[3],
     )).emit(this.dibbsERC1155, "Fractionalized")
@@ -180,7 +187,7 @@ describe("DibbsTests", function() {
   })
 
   it("Fractionalizing to a user fails: tokens are already minted", async () => {
-    await expect(this.dibbsERC1155.connect(this.dibbsAdmin).fractionalize(
+    await expect(this.dibbsERC1155.connect(this.Bob).fractionalize(
       this.Bob.address,
       this.tokenIds[0],
     )).to.revertedWith("DibbsERC1155: this token is already fractionalized")
@@ -251,45 +258,45 @@ describe("DibbsTests", function() {
     await expect(this.shotgun.connect(this.dibbsAdmin).startAuction()).to.revertedWith("Shotgun: is not ready now.")
   })
   
-  it("Registering fraction owners failed: only dibbs admin can register fraction owners for Shotgun auction", async () => {
-    const fractionOwner = this.Alice.address
-    await expect(this.shotgun.connect(this.Carl).registerOwnersWithTokenId(
-      fractionOwner,
-      this.tokenIds[1]
-    )).to.revertedWith("Ownable: caller is not the owner")
+  it("Changing into a new admin succeeds", async () => {
+    await expect(this.shotgun.connect(this.dibbsAdmin).changeDibbsAdmin(this.David.address))
+      .emit(this.shotgun, "DibbsAdminChanged")
+      .withArgs(this.dibbsAdmin.address, this.David.address)
   })
 
-  it("Registering fraction owners failed: no fraction owners there", async () => {
-    const fractionOwner = ethers.constants.AddressZero
-    await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
-      fractionOwner,
-      this.tokenIds[1]
-    )).to.revertedWith("Shotgun: cannot register invalid address")
+  it("Alice registers as a participant fails: token id for auction is not set yet.", async () => {
+    const amount = ethers.BigNumber.from("6000000000000000")
+    await expect(this.shotgun.connect(this.Alice).registerFractionOwner(amount))
+      .to.revertedWith("Shotgun: token id should be set first")
   })
 
-  it("Registering two fraction owners succeeds", async () => {
-    const fractionOwners = [this.Bob.address, this.Carl.address]
-    await this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
-    await this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
-    for (let i = 0; i < fractionOwners.length; i ++)
-      await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
-        fractionOwners[i],
-        this.tokenIds[1]
-      )).emit(this.shotgun, "OtherOwnersReginstered")
-        .withArgs(this.tokenIds[1], i + 1)
+  it("Setting a token id for new Shotgun auction succeeds", async () => {
+    await expect(this.shotgun.connect(this.David).setTokenId(this.tokenIds[1]))
+      .emit(this.shotgun, "NewTokenIdSet")
+      .withArgs(this.tokenIds[1])
   })
-  
-  it("Registering fraction owners fails: has already registered owner", async () => {
-    const fractionOwner = this.Carl.address
-    await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
-      fractionOwner,
-      this.tokenIds[1]
-    )).to.revertedWith("Shotgun: already registered owner")
+
+  it("Bob registers as a participant", async () => {
+    this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
+    const amount = ethers.BigNumber.from("1000000000000000")
+    await expect(this.shotgun.connect(this.Bob).registerFractionOwner(
+      amount
+    )).emit(this.shotgun, "OtherOwnersReginstered")
+      .withArgs(this.tokenIds[1], 1)
+  })
+
+  it("Carl registers as a participant", async () => {
+    this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
+    const amount = ethers.BigNumber.from("3000000000000000")
+    await expect(this.shotgun.connect(this.Carl).registerFractionOwner(
+      amount
+    )).emit(this.shotgun, "OtherOwnersReginstered")
+      .withArgs(this.tokenIds[1], 2)
   })
 
   it("Transferring fractions and ethers for Shotgun auction failed: insufficient funds", async () => {
     const amount = ethers.BigNumber.from("6000000000000000")
-    await expect(this.shotgun.connect(this.Alice).transferForShotgun(
+    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
       amount,
       {value: 0}
     )).to.revertedWith("Shotgun: insufficient funds")
@@ -297,7 +304,7 @@ describe("DibbsTests", function() {
 
   it("Transferring fractions and ethers for Shotgun auction failed: insufficient amount of fractions", async () => {
     const amount = ethers.BigNumber.from("7000000000000000")
-    await expect(this.shotgun.connect(this.Alice).transferForShotgun(
+    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
       amount,
       {value: this.starterBalance}
     )).to.revertedWith("Shotgun: insufficient amount of fractions")
@@ -305,7 +312,7 @@ describe("DibbsTests", function() {
 
   it("Transferring fractions and ethers for Shotgun auction failed: should transfer more than 5000000000000000 fractions", async () => {
     const amount = ethers.BigNumber.from("4000000000000000")
-    await expect(this.shotgun.connect(this.Alice).transferForShotgun(
+    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
       amount,
       {value: this.starterBalance}
     )).to.revertedWith("Shotgun: should be grater than or equal to the half of fraction amount")
@@ -314,7 +321,7 @@ describe("DibbsTests", function() {
   it("Transferring fractions and ethers as a auction starter for Shotgun auction succeeds", async () => {
     const amount = ethers.BigNumber.from("6000000000000000")
     await this.dibbsERC1155.connect(this.Alice).setApprovalForAll(this.shotgun.address, true)
-    await expect(this.shotgun.connect(this.Alice).transferForShotgun(
+    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
       amount,
       {value: this.starterBalance}
     )).emit(this.shotgun, "TransferredForShotgun")
@@ -326,11 +333,11 @@ describe("DibbsTests", function() {
   })
 
   it("Starting Shotgun auction", async () => {
-    await this.shotgun.connect(this.dibbsAdmin).startAuction()
+    await this.shotgun.connect(this.David).startAuction()
   })
   
   it("Claiming proportion failed: Shotgun is not over yet", async () => {
-    await expect(this.shotgun.connect(this.Alice).claimProportion())
+    await expect(this.shotgun.connect(this.Alice).claimProportion(this.tokenIds[1]))
       .to.revertedWith("Shotgun: is not over yet.")
   })
 
@@ -339,7 +346,7 @@ describe("DibbsTests", function() {
   })
 
   it("Claiming proportion succeeded by Alice", async () => {
-    await expect(this.shotgun.connect(this.Alice).claimProportion())
+    await expect(this.shotgun.connect(this.Alice).claimProportion(this.tokenIds[1]))
       .emit(this.shotgun, "FractionsRefunded")
       .withArgs(this.Alice.address)
   })
@@ -351,48 +358,60 @@ describe("DibbsTests", function() {
   // })
 
   // it("Claiming proportion failed: caller is not registered", async () => {
-  //   await expect(this.shotgun.connect(this.Carl).claimProportion())
+  //   await expect(this.shotgun.connect(this.Carl).claimProportion(this.tokenIds[1]))
   //     .to.revertedWith("Shotgun: caller is not registered.")
   // })
 
   // it("Claiming proportion succeeded by Alice", async () => {
-  //   await expect(this.shotgun.connect(this.Alice).claimProportion())
+  //   await expect(this.shotgun.connect(this.Alice).claimProportion(this.tokenIds[1]))
   //     .emit(this.shotgun, "ProportionClaimed")
   //     .withArgs(this.Alice.address)
   // })
   
   it("Claiming proportion succeeded by Bob", async () => {
-    await expect(this.shotgun.connect(this.Bob).claimProportion())
+    await expect(this.shotgun.connect(this.Bob).claimProportion(this.tokenIds[1]))
       .emit(this.shotgun, "ProportionClaimed")
       .withArgs(this.Bob.address)
   })
   
   it("Claiming proportion succeeded by Carl", async () => {
-    await expect(this.shotgun.connect(this.Carl).claimProportion())
+    await expect(this.shotgun.connect(this.Carl).claimProportion(this.tokenIds[1]))
       .emit(this.shotgun, "ProportionClaimed")
       .withArgs(this.Carl.address)
   })
 
   it("Initialize for next auction", async () => {
-    await this.shotgun.connect(this.dibbsAdmin).initialize()
+    await this.shotgun.connect(this.David).initialize()
   })
 
-  it("Registering two fraction owners succeeds", async () => {
-    const fractionOwners = [this.Bob.address, this.Carl.address]
-    await this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
-    await this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
-    for (let i = 0; i < fractionOwners.length; i ++)
-      await expect(this.shotgun.connect(this.dibbsAdmin).registerOwnersWithTokenId(
-        fractionOwners[i],
-        this.tokenIds[2]
-      )).emit(this.shotgun, "OtherOwnersReginstered")
-        .withArgs(this.tokenIds[2], i + 1)
+  it("Setting a token id for new Shotgun auction succeeds", async () => {
+    await expect(this.shotgun.connect(this.David).setTokenId(this.tokenIds[2]))
+      .emit(this.shotgun, "NewTokenIdSet")
+      .withArgs(this.tokenIds[2])
+  })
+
+  it("Bob registers as a participant", async () => {
+    this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
+    const amount = ethers.BigNumber.from("1000000000000000")
+    await expect(this.shotgun.connect(this.Bob).registerFractionOwner(
+      amount
+    )).emit(this.shotgun, "OtherOwnersReginstered")
+      .withArgs(this.tokenIds[2], 1)
+  })
+
+  it("Carl registers as a participant", async () => {
+    this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
+    const amount = ethers.BigNumber.from("3000000000000000")
+    await expect(this.shotgun.connect(this.Carl).registerFractionOwner(
+      amount
+    )).emit(this.shotgun, "OtherOwnersReginstered")
+      .withArgs(this.tokenIds[2], 2)
   })
 
   it("Transferring fractions and ethers as a auction starter for Shotgun auction succeeds", async () => {
     const amount = ethers.BigNumber.from("6000000000000000")
     await this.dibbsERC1155.connect(this.Alice).setApprovalForAll(this.shotgun.address, true)
-    await expect(this.shotgun.connect(this.Alice).transferForShotgun(
+    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
       amount,
       {value: this.starterBalance}
     )).emit(this.shotgun, "TransferredForShotgun")
@@ -400,7 +419,7 @@ describe("DibbsTests", function() {
   })
 
   it("Starting Shotgun auction", async () => {
-    await this.shotgun.connect(this.dibbsAdmin).startAuction()
+    await this.shotgun.connect(this.David).startAuction()
   })
 
   it("Pass 2 month", async () => {
@@ -418,13 +437,13 @@ describe("DibbsTests", function() {
   })
 
   it("Claiming proportion succeeded by Alice", async () => {
-    await expect(this.shotgun.connect(this.Alice).claimProportion())
+    await expect(this.shotgun.connect(this.Alice).claimProportion(this.tokenIds[2]))
       .emit(this.shotgun, "ProportionClaimed")
       .withArgs(this.Alice.address)
   })
 
   it("Claiming proportion succeeded by Bob", async () => {
-    await expect(this.shotgun.connect(this.Bob).claimProportion())
+    await expect(this.shotgun.connect(this.Bob).claimProportion(this.tokenIds[2]))
       .emit(this.shotgun, "FractionsRefunded")
       .withArgs(this.Bob.address)
   })
