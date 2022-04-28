@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 import "hardhat/console.sol";
 
@@ -18,6 +19,10 @@ contract Shotgun is
     Ownable
 {
     using SafeMath for uint256;
+    using Counters for Counters.Counter;
+
+    ///@dev card id tracker
+    Counters.Counter public _auctionIdTracker;
 
     /// @dev represent the status of Shotgun auction
     enum ShotgunStatus {
@@ -36,6 +41,7 @@ contract Shotgun is
         uint256 totalPrice;
         uint256 otherOwnersBalance;
         uint256 totalFractionBalance;
+        uint256 tokenId;
         mapping(address => bool) claimed;
         mapping(address => bool) isFractionOwner;
         mapping(address => uint256) ownerFractionBalance;
@@ -51,9 +57,6 @@ contract Shotgun is
     /// @dev fraction's address
     IDibbsERC1155 public tokenAddr;
 
-    /// @dev fraction type id for auction
-    uint256 public tokenId;
-
     /// @dev represent other owners registered or not
     bool public isOwnerRegistered;
 
@@ -63,13 +66,13 @@ contract Shotgun is
     uint256 public constant HALF_OF_FRACTION_AMOUNT = 5000000000000000;
 
     /// @dev auction duration : 3 months
-    uint256 public constant AUCTION_DURATION = 90 days;
+    uint256 public constant AUCTION_DURATION = 180;//3 mins for test
 
     event NewTokenIdSet(uint256 newTokenId);
 
     event TransferredForShotgun(address owner, address tokenAddr, uint256 id, uint256 amount);
 
-    event AuctionStarted(uint256 startedAt, uint256 totalAmount);
+    event AuctionStarted(uint256 auctionId, uint256 startedAt, uint256 totalAmount);
 
     event Purchased(address purchaser);
 
@@ -82,6 +85,8 @@ contract Shotgun is
     event Withdrawn(address recepient, uint256 amount, uint256 balance);
 
     event DibbsAdminChanged(address prevAdmin, address newAdmin);
+
+    event AuctionInitialized(uint256 newAuctionId);
 
     constructor(
         IDibbsERC1155 _tokenAddr
@@ -96,6 +101,11 @@ contract Shotgun is
             return true;
 
         return false;
+    }
+
+    function getCurrentAuctionId() public view returns (uint256) {
+        uint256 id = _auctionIdTracker.current();
+        return auctionInfos[id].tokenId;
     }
 
     /**
@@ -113,7 +123,8 @@ contract Shotgun is
     /// @dev set new token id    
     function setTokenId(uint256 newTokenId) external override {
         require(msg.sender == dibbsAdmin, "Shotgun: only Dibbs admin can set new token id");
-        tokenId = newTokenId;
+        uint256 id = _auctionIdTracker.current();
+        auctionInfos[id].tokenId = newTokenId;
         isTokenIdSet = true;
 
         emit NewTokenIdSet(newTokenId);
@@ -127,20 +138,21 @@ contract Shotgun is
         uint256 _amount
     ) external override {
         require(isTokenIdSet, "Shotgun: token id should be set first");
-        require(tokenAddr.balanceOf(msg.sender, tokenId) >= _amount, "Shotgun: caller doesn't have the _amount of fractions");
+        uint256 id = _auctionIdTracker.current();
+        require(tokenAddr.balanceOf(msg.sender, auctionInfos[id].tokenId) >= _amount, "Shotgun: caller doesn't have the _amount of fractions");
         require(currentStatus == ShotgunStatus.FREE || currentStatus == ShotgunStatus.WAITING, "Shotgun: is ongoing now or over");
-        require(!auctionInfos[tokenId].isFractionOwner[msg.sender], "Shotgun: already registered owner");
+        require(!auctionInfos[id].isFractionOwner[msg.sender], "Shotgun: already registered owner");
 
-        auctionInfos[tokenId].otherOwners.push(msg.sender);
-        auctionInfos[tokenId].ownerFractionBalance[msg.sender] = _amount;
-        auctionInfos[tokenId].otherOwnersBalance = auctionInfos[tokenId].otherOwnersBalance.add(_amount);
-        auctionInfos[tokenId].totalFractionBalance = auctionInfos[tokenId].totalFractionBalance.add(_amount);
-        tokenAddr.safeTransferFrom(msg.sender, address(this), tokenId, _amount, '');
-        tokenAddr.subFractions(msg.sender, tokenId, _amount);
-        auctionInfos[tokenId].isFractionOwner[msg.sender] = true;
+        auctionInfos[id].otherOwners.push(msg.sender);
+        auctionInfos[id].ownerFractionBalance[msg.sender] = _amount;
+        auctionInfos[id].otherOwnersBalance = auctionInfos[id].otherOwnersBalance.add(_amount);
+        auctionInfos[id].totalFractionBalance = auctionInfos[id].totalFractionBalance.add(_amount);
+        tokenAddr.safeTransferFrom(msg.sender, address(this), auctionInfos[id].tokenId, _amount, '');
+        tokenAddr.subFractions(msg.sender, auctionInfos[id].tokenId, _amount);
+        auctionInfos[id].isFractionOwner[msg.sender] = true;
         isOwnerRegistered = true;
 
-        emit OtherOwnersReginstered(msg.sender, auctionInfos[tokenId].otherOwners.length);
+        emit OtherOwnersReginstered(msg.sender, auctionInfos[id].otherOwners.length);
     }
 
     /**
@@ -151,11 +163,12 @@ contract Shotgun is
         uint256 _amount
     ) external payable nonReentrant override {
         require(isTokenIdSet, "Shotgun: token id should be set first");
-        require(auctionInfos[tokenId].auctionStarter == address(0), "Shoutgun: auction starter already registered.");
+        uint256 id = _auctionIdTracker.current();
+        require(auctionInfos[id].auctionStarter == address(0), "Shoutgun: auction starter already registered.");
         require(currentStatus == ShotgunStatus.FREE, "Shotgun: is ongoing now");
         require(msg.value > 0, "Shotgun: insufficient funds");
         require(
-            tokenAddr.balanceOf(msg.sender, tokenId) >= _amount,
+            tokenAddr.balanceOf(msg.sender, auctionInfos[id].tokenId) >= _amount,
             "Shotgun: insufficient amount of fractions"
         );
         require(
@@ -163,17 +176,17 @@ contract Shotgun is
             "Shotgun: should be grater than or equal to the half of fraction amount"
         );
 
-        tokenAddr.safeTransferFrom(msg.sender, address(this), tokenId, _amount, '');
-        auctionInfos[tokenId].auctionStarter = msg.sender;
-        auctionInfos[tokenId].ownerFractionBalance[msg.sender] = _amount;
-        auctionInfos[tokenId].starterFractionBalance = _amount;
-        auctionInfos[tokenId].starterEtherBalance = msg.value;
-        auctionInfos[tokenId].totalFractionBalance = auctionInfos[tokenId].totalFractionBalance.add(_amount);
-        tokenAddr.subFractions(msg.sender, tokenId, _amount);
+        tokenAddr.safeTransferFrom(msg.sender, address(this), auctionInfos[id].tokenId, _amount, '');
+        auctionInfos[id].auctionStarter = msg.sender;
+        auctionInfos[id].ownerFractionBalance[msg.sender] = _amount;
+        auctionInfos[id].starterFractionBalance = _amount;
+        auctionInfos[id].starterEtherBalance = msg.value;
+        auctionInfos[id].totalFractionBalance = auctionInfos[id].totalFractionBalance.add(_amount);
+        tokenAddr.subFractions(msg.sender, auctionInfos[id].tokenId, _amount);
 
         currentStatus = ShotgunStatus.WAITING;
 
-        emit TransferredForShotgun(msg.sender, address(tokenAddr), tokenId, _amount);
+        emit TransferredForShotgun(msg.sender, address(tokenAddr), auctionInfos[id].tokenId, _amount);
     }
 
     /// @dev start Shotgun auction
@@ -183,59 +196,63 @@ contract Shotgun is
             currentStatus == ShotgunStatus.WAITING && isOwnerRegistered,
             "Shotgun: is not ready now."
         );
-        auctionInfos[tokenId].startedAt = block.timestamp;
+        uint256 id = _auctionIdTracker.current();
+        auctionInfos[id].startedAt = block.timestamp;
         currentStatus = ShotgunStatus.ONGOING;
-        auctionInfos[tokenId].totalPrice = auctionInfos[tokenId].starterEtherBalance.mul(auctionInfos[tokenId].totalFractionBalance).div(auctionInfos[tokenId].otherOwnersBalance);
+        auctionInfos[id].totalPrice = auctionInfos[id].starterEtherBalance.mul(auctionInfos[id].totalFractionBalance).div(auctionInfos[id].otherOwnersBalance);
         
-        emit AuctionStarted(auctionInfos[tokenId].startedAt, auctionInfos[tokenId].totalFractionBalance);
+        emit AuctionStarted(id, auctionInfos[id].startedAt, auctionInfos[id].totalFractionBalance);
     }
 
     /// @dev purchse the locked fractions
     function purchase() external payable nonReentrant override {
         require(currentStatus == ShotgunStatus.ONGOING, "Shotgun: is not started yet.");
-        require(!isAuctionExpired(tokenId), "Shotgun: already expired");
-        uint256 price = auctionInfos[tokenId].totalPrice.mul(auctionInfos[tokenId].starterFractionBalance).div(auctionInfos[tokenId].totalFractionBalance);
+        uint256 id = _auctionIdTracker.current();
+        require(!isAuctionExpired(id), "Shotgun: already expired");
+        uint256 price = auctionInfos[id].totalPrice.mul(auctionInfos[id].starterFractionBalance).div(auctionInfos[id].totalFractionBalance);
         require(msg.value >= price, "Shotgun: insufficient funds.");
+        require(msg.sender != auctionInfos[id].auctionStarter, "Shotgun: starter can't purchase its fractions");
 
-        uint256 amount = auctionInfos[tokenId].starterFractionBalance.add(auctionInfos[tokenId].ownerFractionBalance[msg.sender]);
-        tokenAddr.safeTransferFrom(address(this), msg.sender, tokenId, amount, '');
-        tokenAddr.addFractions(msg.sender, tokenId, amount);
+        uint256 amount = auctionInfos[id].starterFractionBalance.add(auctionInfos[id].ownerFractionBalance[msg.sender]);
+        tokenAddr.safeTransferFrom(address(this), msg.sender, auctionInfos[id].tokenId, amount, '');
+        tokenAddr.addFractions(msg.sender, auctionInfos[id].tokenId, amount);
 
         currentStatus = ShotgunStatus.OVER;
         emit Purchased(msg.sender);
     }
 
     /// @dev claim proportional amount of total price
-    function claimProportion(uint256 _tokenId) external nonReentrant override {
+    function claimProportion(uint256 id) external nonReentrant override {
         require(
-            currentStatus == ShotgunStatus.OVER || isAuctionExpired(tokenId),
+            isAuctionExpired(id),
             "Shotgun: is not over yet."
         );
-        require(auctionInfos[_tokenId].isFractionOwner[msg.sender] || msg.sender == auctionInfos[_tokenId].auctionStarter, "Shotgun: caller is not registered.");
-        require(!auctionInfos[_tokenId].claimed[msg.sender], "Shotgun: already claimed owner");
-        auctionInfos[_tokenId].claimed[msg.sender] = true;
+
+        require(auctionInfos[id].isFractionOwner[msg.sender] || msg.sender == auctionInfos[id].auctionStarter, "Shotgun: caller is not registered.");
+        require(!auctionInfos[id].claimed[msg.sender], "Shotgun: already claimed owner");
+        auctionInfos[id].claimed[msg.sender] = true;
 
         uint256 price;
-        if (msg.sender == auctionInfos[_tokenId].auctionStarter) {
+        if (msg.sender == auctionInfos[id].auctionStarter) {
             if (currentStatus == ShotgunStatus.OVER) {
-                price = auctionInfos[_tokenId].totalPrice.
-                            mul(auctionInfos[_tokenId].starterFractionBalance).
-                            div(auctionInfos[_tokenId].totalFractionBalance).
-                            add(auctionInfos[_tokenId].starterEtherBalance);
-                (bool success, ) = payable(auctionInfos[_tokenId].auctionStarter).call{value: price}("");
+                price = auctionInfos[id].totalPrice.
+                            mul(auctionInfos[id].starterFractionBalance).
+                            div(auctionInfos[id].totalFractionBalance).
+                            add(auctionInfos[id].starterEtherBalance);
+                (bool success, ) = payable(auctionInfos[id].auctionStarter).call{value: price}("");
                 require(success, "Shotgun: refunding is not successful.");
                 
                 emit ProportionClaimed(msg.sender);
             } else {
                 tokenAddr.safeTransferFrom(
                     address(this),
-                    auctionInfos[_tokenId].auctionStarter,
-                    _tokenId,
-                    auctionInfos[_tokenId].starterFractionBalance.add(auctionInfos[_tokenId].otherOwnersBalance),
+                    auctionInfos[id].auctionStarter,
+                    auctionInfos[id].tokenId,
+                    auctionInfos[id].starterFractionBalance.add(auctionInfos[id].otherOwnersBalance),
                     ''
                 );
 
-                tokenAddr.addFractions(auctionInfos[_tokenId].auctionStarter, _tokenId, auctionInfos[_tokenId].starterFractionBalance.add(auctionInfos[_tokenId].otherOwnersBalance));
+                tokenAddr.addFractions(auctionInfos[id].auctionStarter, auctionInfos[id].tokenId, auctionInfos[id].starterFractionBalance.add(auctionInfos[id].otherOwnersBalance));
                 emit FractionsRefunded(msg.sender);
             }
         } else {
@@ -244,17 +261,17 @@ contract Shotgun is
                 tokenAddr.safeTransferFrom(
                     address(this),
                     msg.sender,
-                    _tokenId,
-                    auctionInfos[_tokenId].ownerFractionBalance[msg.sender],
+                    auctionInfos[id].tokenId,
+                    auctionInfos[id].ownerFractionBalance[msg.sender],
                     ''
                 );
 
-                tokenAddr.addFractions(msg.sender, _tokenId, auctionInfos[_tokenId].ownerFractionBalance[msg.sender]);
+                tokenAddr.addFractions(msg.sender, auctionInfos[id].tokenId, auctionInfos[id].ownerFractionBalance[msg.sender]);
 
                 emit FractionsRefunded(msg.sender);
             } else {
-                uint256 amount = auctionInfos[_tokenId].ownerFractionBalance[msg.sender];
-                price = auctionInfos[_tokenId].starterEtherBalance.mul(amount).div(auctionInfos[_tokenId].starterFractionBalance);
+                uint256 amount = auctionInfos[id].ownerFractionBalance[msg.sender];
+                price = auctionInfos[id].starterEtherBalance.mul(amount).div(auctionInfos[id].starterFractionBalance);
                 (bool success, ) = payable(msg.sender).call{value: price}("");
                 require(success, "Shotgun: refunding is not successful.");
 
@@ -266,14 +283,18 @@ contract Shotgun is
     /// @dev initialize after endin Shotgun auction
     function initialize() external override {
         require(msg.sender == dibbsAdmin, "Shotgun: only Dibbs admin can initialize.");
+        uint256 id = _auctionIdTracker.current();
         require(
-            currentStatus == ShotgunStatus.OVER || isAuctionExpired(tokenId),
+            currentStatus == ShotgunStatus.OVER || isAuctionExpired(id),
             "Shotgun: is not over yet."
         );
         ///@dev initialize state variables for next auction.
         currentStatus = ShotgunStatus.FREE;
         isOwnerRegistered = false;
         isTokenIdSet = false;
+        _auctionIdTracker.increment();
+
+        emit AuctionInitialized(_auctionIdTracker.current());
     }
 
     /**

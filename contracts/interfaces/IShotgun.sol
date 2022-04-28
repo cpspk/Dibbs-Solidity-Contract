@@ -35,7 +35,7 @@ interface IShotgun {
     function purchase() external payable;
 
     /// @dev claim proportional amount of total price
-    function claimProportion(uint256 _tokenId) external;
+    function claimProportion(uint256 auctionId) external;
 
     /// @dev initialize after endin Shotgun auction
     function initialize() external;

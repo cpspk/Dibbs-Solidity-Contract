@@ -12,10 +12,12 @@ describe("DibbsTests", function() {
     this.Carl = Carl
     this.David = David
     this.tokenIds = [0, 1, 2, 3]
+    this.auctionIds = [0, 1, 2]
     this.nftPrice = ethers.utils.parseEther("0.06")
     this.additional = ethers.utils.parseEther("0.00000000000000001")
     this.starterBalance = ethers.utils.parseEther("0.004")
     this.buyerBalance = ethers.utils.parseEther("0.006")
+    this.buyerBalance2 = ethers.utils.parseEther("0.01")
     this.tokenURI = 'https://dibbs.testURI/'
 
     const DibbsERC721Upgradeable = await ethers.getContractFactory("DibbsERC721Upgradeable")
@@ -282,7 +284,7 @@ describe("DibbsTests", function() {
     await expect(this.shotgun.connect(this.Bob).registerFractionOwner(
       amount
     )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.tokenIds[1], 1)
+      .withArgs(this.Bob.address, 1)
   })
 
   it("Carl registers as a participant", async () => {
@@ -291,7 +293,7 @@ describe("DibbsTests", function() {
     await expect(this.shotgun.connect(this.Carl).registerFractionOwner(
       amount
     )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.tokenIds[1], 2)
+      .withArgs(this.Carl.address, 2)
   })
 
   it("Transferring fractions and ethers for Shotgun auction failed: insufficient funds", async () => {
@@ -337,50 +339,57 @@ describe("DibbsTests", function() {
   })
   
   it("Claiming proportion failed: Shotgun is not over yet", async () => {
-    await expect(this.shotgun.connect(this.Alice).claimProportion(this.tokenIds[1]))
+    await expect(this.shotgun.connect(this.Alice).claimProportion(this.auctionIds[0]))
       .to.revertedWith("Shotgun: is not over yet.")
   })
 
-  it("Pass 3 month", async () => {
-    await advanceTime(90 * 24 * 3600);
-  })
-
-  it("Claiming proportion succeeded by Alice", async () => {
-    await expect(this.shotgun.connect(this.Alice).claimProportion(this.tokenIds[1]))
-      .emit(this.shotgun, "FractionsRefunded")
-      .withArgs(this.Alice.address)
-  })
-  
-  // it("Purchasing by Carl succeeded", async () => {
-  //   await expect(this.shotgun.connect(this.Carl).purchase({value: this.buyerBalance}))
-  //     .emit(this.shotgun, "Purchased")
-  //     .withArgs(this.Carl.address)
-  // })
-
-  // it("Claiming proportion failed: caller is not registered", async () => {
-  //   await expect(this.shotgun.connect(this.Carl).claimProportion(this.tokenIds[1]))
-  //     .to.revertedWith("Shotgun: caller is not registered.")
+  // it("Pass 3 month", async () => {
+  //   await advanceTime(90 * 24 * 3600);
   // })
 
   // it("Claiming proportion succeeded by Alice", async () => {
-  //   await expect(this.shotgun.connect(this.Alice).claimProportion(this.tokenIds[1]))
-  //     .emit(this.shotgun, "ProportionClaimed")
+  //   await expect(this.shotgun.connect(this.Alice).claimProportion())
+  //     .emit(this.shotgun, "FractionsRefunded")
   //     .withArgs(this.Alice.address)
   // })
   
-  it("Claiming proportion succeeded by Bob", async () => {
-    await expect(this.shotgun.connect(this.Bob).claimProportion(this.tokenIds[1]))
-      .emit(this.shotgun, "ProportionClaimed")
-      .withArgs(this.Bob.address)
-  })
-  
-  it("Claiming proportion succeeded by Carl", async () => {
-    await expect(this.shotgun.connect(this.Carl).claimProportion(this.tokenIds[1]))
-      .emit(this.shotgun, "ProportionClaimed")
+  it("Purchasing by Carl succeeded", async () => {
+    await expect(this.shotgun.connect(this.Carl).purchase({value: this.buyerBalance}))
+      .emit(this.shotgun, "Purchased")
       .withArgs(this.Carl.address)
   })
 
-  it("Initialize for next auction", async () => {
+  it("Pass 3 mins", async () => {
+    await advanceTime(180);
+  })
+
+  // it("Claiming proportion failed: caller is not registered", async () => {
+  //   await expect(this.shotgun.connect(this.Carl).claimProportion())
+  //     .to.revertedWith("Shotgun: caller is not registered.")
+  // })
+  it("Claiming proportion succeeded by Bob", async () => {
+    await expect(this.shotgun.connect(this.Bob).claimProportion(this.auctionIds[0]))
+      .emit(this.shotgun, "FractionsRefunded")
+      .withArgs(this.Bob.address)
+  })
+
+  it("Claiming proportion succeeded by Alice", async () => {
+    await expect(this.shotgun.connect(this.Alice).claimProportion(this.auctionIds[0]))
+      .emit(this.shotgun, "ProportionClaimed")
+      .withArgs(this.Alice.address)
+  })
+  
+  
+  
+  // it("Claiming proportion succeeded by Carl", async () => {
+  //   await expect(this.shotgun.connect(this.Carl).claimProportion())
+  //     .emit(this.shotgun, "ProportionClaimed")
+  //     .withArgs(this.Carl.address)
+  // })
+
+
+//=============================Next auction================================= 
+  it("2.Initialize for next auction", async () => {
     await this.shotgun.connect(this.David).initialize()
   })
 
@@ -396,7 +405,7 @@ describe("DibbsTests", function() {
     await expect(this.shotgun.connect(this.Bob).registerFractionOwner(
       amount
     )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.tokenIds[2], 1)
+      .withArgs(this.Bob.address, 1)
   })
 
   it("Carl registers as a participant", async () => {
@@ -405,7 +414,7 @@ describe("DibbsTests", function() {
     await expect(this.shotgun.connect(this.Carl).registerFractionOwner(
       amount
     )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.tokenIds[2], 2)
+      .withArgs(this.Carl.address, 2)
   })
 
   it("Transferring fractions and ethers as a auction starter for Shotgun auction succeeds", async () => {
@@ -422,28 +431,24 @@ describe("DibbsTests", function() {
     await this.shotgun.connect(this.David).startAuction()
   })
 
-  it("Pass 2 month", async () => {
-    await advanceTime(60 * 24 * 3600);
-  })
-
   it("Purchasing by Carl succeeded", async () => {
     await expect(this.shotgun.connect(this.Carl).purchase({value: this.buyerBalance}))
       .emit(this.shotgun, "Purchased")
       .withArgs(this.Carl.address)
   })
-
-  it("Pass 1 month", async () => {
-    await advanceTime(30 * 24 * 3600);
+  
+  it("Pass 3 mins", async () => {
+    await advanceTime(180);
   })
 
   it("Claiming proportion succeeded by Alice", async () => {
-    await expect(this.shotgun.connect(this.Alice).claimProportion(this.tokenIds[2]))
+    await expect(this.shotgun.connect(this.Alice).claimProportion(this.auctionIds[1]))
       .emit(this.shotgun, "ProportionClaimed")
       .withArgs(this.Alice.address)
   })
 
   it("Claiming proportion succeeded by Bob", async () => {
-    await expect(this.shotgun.connect(this.Bob).claimProportion(this.tokenIds[2]))
+    await expect(this.shotgun.connect(this.Bob).claimProportion(this.auctionIds[1]))
       .emit(this.shotgun, "FractionsRefunded")
       .withArgs(this.Bob.address)
   })
