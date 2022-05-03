@@ -62,7 +62,7 @@ contract Shotgun is
     uint256 public constant TOTAL_FRACTION_AMOUNT = 10000000000000000;
 
     /// @dev auction duration : 3 months
-    uint256 public constant AUCTION_DURATION = 60;//1 mins for test
+    uint256 public constant AUCTION_DURATION = 1800;//30 mins for test
 
     event AuctionStarted(uint256 auctionId, uint256 tokenId, uint256 amountLocked);
 
@@ -92,7 +92,7 @@ contract Shotgun is
         return false;
     }
 
-    function getCurrentAuctionId(uint256 id)
+    function getCurrentAuctionInfo(uint256 id)
         public
         view 
         returns (address, uint256, uint256, uint256, uint256, uint256, ShotgunStatus)
@@ -108,9 +108,9 @@ contract Shotgun is
         );
     }
 
-    function getPrice(uint256 _amount) public view returns (uint256) {
-        uint256 remainings = TOTAL_FRACTION_AMOUNT - auctionInfos[auctionID].fractions;
-        uint256 ethers = _amount.mul(auctionInfos[auctionID].ethers).div(remainings);
+    function getPrice(uint256 _amount, uint256 id) public view returns (uint256) {
+        uint256 remainings = TOTAL_FRACTION_AMOUNT - auctionInfos[id].fractions;
+        uint256 ethers = _amount.mul(auctionInfos[id].ethers).div(remainings);
         return ethers;
     }
 
@@ -134,7 +134,6 @@ contract Shotgun is
         auctionInfos[id].fractions = _amount;
         auctionInfos[id].ethers = msg.value;
         auctionInfos[id].status = ShotgunStatus.ONGOING;
-        auctionID = id;
         _auctionIdTracker.increment();
 
         fractionAddr.safeTransferFrom(msg.sender, address(this), _tokenId, _amount, '');
@@ -146,7 +145,7 @@ contract Shotgun is
     function purchase(uint256 id) external payable nonReentrant override {
         require(auctionInfos[id].status == ShotgunStatus.ONGOING, "Shotgun: is not started yet.");
         require(!isAuctionExpired(id), "Shotgun: already expired");
-        uint256 price = getPrice(auctionInfos[id].fractions);
+        uint256 price = getPrice(auctionInfos[id].fractions, id);
         require(msg.value >= price, "Shotgun: insufficient funds.");
 
         fractionAddr.safeTransferFrom(address(this), msg.sender, auctionInfos[id].tokenId, auctionInfos[id].fractions, '');
@@ -167,6 +166,8 @@ contract Shotgun is
         (bool success, ) = payable(msg.sender).call{value: auctionInfos[id].restEthers}("");
         require(success, "Shotgun: redeeming is not successful.");
 
+        auctionInfos[id].status = ShotgunStatus.FREE;
+
         emit StarterClaimed(msg.sender, auctionInfos[id].restEthers);
     }
 
@@ -181,9 +182,13 @@ contract Shotgun is
 
         fractionAddr.safeTransferFrom(msg.sender, address(this), tokenId, amount, "");
 
-        uint256 price = getPrice(amount);
+        uint256 price = getPrice(amount, id);
         (bool success, ) = payable(msg.sender).call{value: price}("");
         require(success, "Shotgun: redeeming is not successful.");
+
+        if (fractionAddr.balanceOf(address(this), tokenId) == TOTAL_FRACTION_AMOUNT) {
+            auctionInfos[id].status = ShotgunStatus.FREE;
+        }
 
         emit OwnerSentAndRedeemed(msg.sender, amount, price);
     }
@@ -191,7 +196,8 @@ contract Shotgun is
     function withdrawNFT(uint256 id) external override {
         uint256 tokenId = auctionInfos[id].tokenId;
         address recipient = auctionInfos[id].starter;
-        require(fractionAddr.balanceOf(address(this), tokenId) == TOTAL_FRACTION_AMOUNT);
+        require(msg.sender == auctionInfos[id].starter, "Shotgun: only starter can withdraw the NFT");
+        require(fractionAddr.balanceOf(address(this), tokenId) == TOTAL_FRACTION_AMOUNT, "Shotgun: insufficient fractions");
 
         nftAddr.withdraw(recipient, tokenId);
 

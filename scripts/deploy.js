@@ -1,8 +1,6 @@
 const { ethers } = require("hardhat")
 
 async function main() {
-  // const DibbsERC721Upgradeable = await ethers.getContractFactory("DibbsERC721Upgradeable");
-  // const dibbsERC721Upgradeable = await upgrades.deployProxy(DibbsERC721Upgradeable, ["https://dibbs/"])
 
   const DibbsERC721Upgradeable = await ethers.getContractFactory("DibbsERC721Upgradeable");
   const dibbsERC721Upgradeable = await DibbsERC721Upgradeable.deploy()
@@ -21,9 +19,8 @@ async function main() {
   console.log("DibbsERC1155 Address: ", dibbsERC1155.address);
 
   const Shotgun = await ethers.getContractFactory("Shotgun");
-  const shotgun = await Shotgun.deploy(dibbsERC1155.address);
+  const shotgun = await Shotgun.deploy(dibbsERC721Upgradeable.address, dibbsERC1155.address);
   console.log("Shotgun address:", shotgun.address);
-
 }
 
 main()

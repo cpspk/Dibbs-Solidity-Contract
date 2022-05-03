@@ -349,6 +349,7 @@ describe("DibbsTests", function() {
   })
 
   it("Claiming locked ethers after purchaing succeeds", async () => {
+    // console.log(await this.shotgun.getPrice())
     await expect(this.shotgun.connect(this.Alice).claimEtherAfterFinishing(0))
       .emit(this.shotgun, "StarterClaimed")
       .withArgs(this.Alice.address, this.buyerBalance)
