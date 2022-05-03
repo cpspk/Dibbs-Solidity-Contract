@@ -14,10 +14,10 @@ describe("DibbsTests", function() {
     this.tokenIds = [0, 1, 2, 3]
     this.auctionIds = [0, 1, 2]
     this.nftPrice = ethers.utils.parseEther("0.06")
-    this.additional = ethers.utils.parseEther("0.00000000000000001")
+    this.additionalBalance = ethers.utils.parseEther("0.005")
     this.starterBalance = ethers.utils.parseEther("0.004")
     this.buyerBalance = ethers.utils.parseEther("0.006")
-    this.buyerBalance2 = ethers.utils.parseEther("0.01")
+    this.buyerBalance2 = ethers.utils.parseEther("0.002")
     this.tokenURI = 'https://dibbs.testURI/'
 
     const DibbsERC721Upgradeable = await ethers.getContractFactory("DibbsERC721Upgradeable")
@@ -31,14 +31,19 @@ describe("DibbsTests", function() {
     )
 
     const Shotgun = await ethers.getContractFactory("Shotgun")
-    this.shotgun = await Shotgun.deploy(this.dibbsERC1155.address)
+    this.shotgun = await Shotgun.deploy(this.dibbsERC721Upgradeable.address, this.dibbsERC1155.address)
   })
 
+  it("Set fraction and shotgun contract address to NFT contract", async () => {
+    await this.dibbsERC721Upgradeable.setDibbsERC1155Addr(this.dibbsERC1155.address)
+    await this.dibbsERC721Upgradeable.setShotgunAddr(this.shotgun.address)
+  })
+  
   it("Setting card fractionalized fails: should fractionalize only existing token", async () => {
     await expect(this.dibbsERC721Upgradeable.connect(this.dibbsAdmin).setCardFractionalized(this.tokenIds[0]))
-      .to.revertedWith("DibbsERC721Upgradeable: invalid card token id")
+    .to.revertedWith("DibbsERC721Upgradeable: invalid card token id")
   })
-
+  
   it("Minting fails: Only dibbs can mint NFTs", async () => {
     await expect(this.dibbsERC721Upgradeable.connect(this.Alice).mint(this.tokenURI, this.Alice.address, "Messi shot SPA10", "SPA10", "123"))
     .to.revertedWith("DibbsERC721Upgradeable: Only dibbs can mint NFTs")
@@ -235,7 +240,7 @@ describe("DibbsTests", function() {
   })
 
   it("Transferring fractions to Bob succeeds", async () => {
-    const amount = ethers.BigNumber.from("1000000000000000")
+    const amount = ethers.BigNumber.from("2000000000000000")
     await expect(this.dibbsERC1155.connect(this.Alice).transferFractions(
       this.Bob.address,
       this.tokenIds[2],
@@ -245,7 +250,7 @@ describe("DibbsTests", function() {
   })
 
   it("Transferring fractions to Carl succeeds", async () => {
-    const amount = ethers.BigNumber.from("3000000000000000")
+    const amount = ethers.BigNumber.from("2000000000000000")
     await expect(this.dibbsERC1155.connect(this.Alice).transferFractions(
       this.Carl.address,
       this.tokenIds[2],
@@ -253,211 +258,7 @@ describe("DibbsTests", function() {
     )).emit(this.dibbsERC1155, "FractionsTransferred")
       .withArgs(this.Alice.address, this.Carl.address, this.tokenIds[2], amount)
   })
-
-  //=====================================  Shotgun auction  ====================================== 
   
-  it("Starting Shotgun auction fails", async () => {
-    await expect(this.shotgun.connect(this.dibbsAdmin).startAuction()).to.revertedWith("Shotgun: is not ready now.")
-  })
-  
-  it("Changing into a new admin succeeds", async () => {
-    await expect(this.shotgun.connect(this.dibbsAdmin).changeDibbsAdmin(this.David.address))
-      .emit(this.shotgun, "DibbsAdminChanged")
-      .withArgs(this.dibbsAdmin.address, this.David.address)
-  })
-
-  it("Alice registers as a participant fails: token id for auction is not set yet.", async () => {
-    const amount = ethers.BigNumber.from("6000000000000000")
-    await expect(this.shotgun.connect(this.Alice).registerFractionOwner(amount))
-      .to.revertedWith("Shotgun: token id should be set first")
-  })
-
-  it("Setting a token id for new Shotgun auction succeeds", async () => {
-    await expect(this.shotgun.connect(this.David).setTokenId(this.tokenIds[1]))
-      .emit(this.shotgun, "NewTokenIdSet")
-      .withArgs(this.tokenIds[1])
-  })
-
-  it("Bob registers as a participant", async () => {
-    this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
-    const amount = ethers.BigNumber.from("1000000000000000")
-    await expect(this.shotgun.connect(this.Bob).registerFractionOwner(
-      amount
-    )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.Bob.address, 1)
-  })
-
-  it("Carl registers as a participant", async () => {
-    this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
-    const amount = ethers.BigNumber.from("3000000000000000")
-    await expect(this.shotgun.connect(this.Carl).registerFractionOwner(
-      amount
-    )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.Carl.address, 2)
-  })
-
-  it("Transferring fractions and ethers for Shotgun auction failed: insufficient funds", async () => {
-    const amount = ethers.BigNumber.from("6000000000000000")
-    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
-      amount,
-      {value: 0}
-    )).to.revertedWith("Shotgun: insufficient funds")
-  })
-
-  it("Transferring fractions and ethers for Shotgun auction failed: insufficient amount of fractions", async () => {
-    const amount = ethers.BigNumber.from("7000000000000000")
-    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
-      amount,
-      {value: this.starterBalance}
-    )).to.revertedWith("Shotgun: insufficient amount of fractions")
-  })
-
-  it("Transferring fractions and ethers for Shotgun auction failed: should transfer more than 5000000000000000 fractions", async () => {
-    const amount = ethers.BigNumber.from("4000000000000000")
-    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
-      amount,
-      {value: this.starterBalance}
-    )).to.revertedWith("Shotgun: should be grater than or equal to the half of fraction amount")
-  })
-  
-  it("Transferring fractions and ethers as a auction starter for Shotgun auction succeeds", async () => {
-    const amount = ethers.BigNumber.from("6000000000000000")
-    await this.dibbsERC1155.connect(this.Alice).setApprovalForAll(this.shotgun.address, true)
-    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
-      amount,
-      {value: this.starterBalance}
-    )).emit(this.shotgun, "TransferredForShotgun")
-      .withArgs(this.Alice.address, this.dibbsERC1155.address, this.tokenIds[1], amount)
-  })
-
-  it("Purchasing by Carl failed: auction is not started", async () => {
-    await expect(this.shotgun.connect(this.Carl).purchase()).to.revertedWith("Shotgun: is not started yet.")
-  })
-
-  it("Starting Shotgun auction", async () => {
-    await this.shotgun.connect(this.David).startAuction()
-  })
-  
-  it("Claiming proportion failed: Shotgun is not over yet", async () => {
-    await expect(this.shotgun.connect(this.Alice).claimProportion(this.auctionIds[0]))
-      .to.revertedWith("Shotgun: is not over yet.")
-  })
-
-  // it("Pass 3 month", async () => {
-  //   await advanceTime(90 * 24 * 3600);
-  // })
-
-  // it("Claiming proportion succeeded by Alice", async () => {
-  //   await expect(this.shotgun.connect(this.Alice).claimProportion())
-  //     .emit(this.shotgun, "FractionsRefunded")
-  //     .withArgs(this.Alice.address)
-  // })
-  
-  it("Purchasing by Carl succeeded", async () => {
-    await expect(this.shotgun.connect(this.Carl).purchase({value: this.buyerBalance}))
-      .emit(this.shotgun, "Purchased")
-      .withArgs(this.Carl.address)
-  })
-
-  it("Pass 3 mins", async () => {
-    await advanceTime(180);
-  })
-
-  // it("Claiming proportion failed: caller is not registered", async () => {
-  //   await expect(this.shotgun.connect(this.Carl).claimProportion())
-  //     .to.revertedWith("Shotgun: caller is not registered.")
-  // })
-  it("Claiming proportion succeeded by Bob", async () => {
-    await expect(this.shotgun.connect(this.Bob).claimProportion(this.auctionIds[0]))
-      .emit(this.shotgun, "FractionsRefunded")
-      .withArgs(this.Bob.address)
-  })
-
-  it("Claiming proportion succeeded by Alice", async () => {
-    await expect(this.shotgun.connect(this.Alice).claimProportion(this.auctionIds[0]))
-      .emit(this.shotgun, "ProportionClaimed")
-      .withArgs(this.Alice.address)
-  })
-  
-  
-  
-  // it("Claiming proportion succeeded by Carl", async () => {
-  //   await expect(this.shotgun.connect(this.Carl).claimProportion())
-  //     .emit(this.shotgun, "ProportionClaimed")
-  //     .withArgs(this.Carl.address)
-  // })
-
-
-//=============================Next auction================================= 
-  it("2.Initialize for next auction", async () => {
-    await this.shotgun.connect(this.David).initialize()
-  })
-
-  it("Setting a token id for new Shotgun auction succeeds", async () => {
-    await expect(this.shotgun.connect(this.David).setTokenId(this.tokenIds[2]))
-      .emit(this.shotgun, "NewTokenIdSet")
-      .withArgs(this.tokenIds[2])
-  })
-
-  it("Bob registers as a participant", async () => {
-    this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
-    const amount = ethers.BigNumber.from("1000000000000000")
-    await expect(this.shotgun.connect(this.Bob).registerFractionOwner(
-      amount
-    )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.Bob.address, 1)
-  })
-
-  it("Carl registers as a participant", async () => {
-    this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
-    const amount = ethers.BigNumber.from("3000000000000000")
-    await expect(this.shotgun.connect(this.Carl).registerFractionOwner(
-      amount
-    )).emit(this.shotgun, "OtherOwnersReginstered")
-      .withArgs(this.Carl.address, 2)
-  })
-
-  it("Transferring fractions and ethers as a auction starter for Shotgun auction succeeds", async () => {
-    const amount = ethers.BigNumber.from("6000000000000000")
-    await this.dibbsERC1155.connect(this.Alice).setApprovalForAll(this.shotgun.address, true)
-    await expect(this.shotgun.connect(this.Alice).registerShotgunStarter(
-      amount,
-      {value: this.starterBalance}
-    )).emit(this.shotgun, "TransferredForShotgun")
-      .withArgs(this.Alice.address, this.dibbsERC1155.address, this.tokenIds[2], amount)
-  })
-
-  it("Starting Shotgun auction", async () => {
-    await this.shotgun.connect(this.David).startAuction()
-  })
-
-  it("Purchasing by Carl succeeded", async () => {
-    await expect(this.shotgun.connect(this.Carl).purchase({value: this.buyerBalance}))
-      .emit(this.shotgun, "Purchased")
-      .withArgs(this.Carl.address)
-  })
-  
-  it("Pass 3 mins", async () => {
-    await advanceTime(180);
-  })
-
-  it("Claiming proportion succeeded by Alice", async () => {
-    await expect(this.shotgun.connect(this.Alice).claimProportion(this.auctionIds[1]))
-      .emit(this.shotgun, "ProportionClaimed")
-      .withArgs(this.Alice.address)
-  })
-
-  it("Claiming proportion succeeded by Bob", async () => {
-    await expect(this.shotgun.connect(this.Bob).claimProportion(this.auctionIds[1]))
-      .emit(this.shotgun, "FractionsRefunded")
-      .withArgs(this.Bob.address)
-  })
-
-  it("Defractionalizing fraction from Carl failed: insufficient fractions", async () => {
-    await expect(this.dibbsERC1155.connect(this.Carl).defractionalize(this.tokenIds[2]))
-      .to.revertedWith("DibbsERC1155: insufficient fraction balance")
-  })
-
   it("Defractionalizing fraction from Alice succeeded", async () => {
     await expect(this.dibbsERC1155.connect(this.Alice).defractionalize(this.tokenIds[3]))
       .emit(this.dibbsERC1155, "Defractionalized")
@@ -476,7 +277,7 @@ describe("DibbsTests", function() {
 
   it("Withdrawing a NFT before defractionalizing failed", async () => {
     await expect(this.dibbsERC721Upgradeable.connect(this.Alice).withdraw(this.Alice.address, this.tokenIds[3]))
-      .to.revertedWith("DibbsERC721Upgradeable: caller is not dibbsERC1155 contract")
+      .to.revertedWith("DibbsERC721Upgradeable: caller is not DibbsERC1155 or Shotgun contract")
   })
 
   it("Withdrawing a NFT after defractionalizing succeeded", async () => {
@@ -491,4 +292,109 @@ describe("DibbsTests", function() {
     await expect(this.dibbsERC1155.connect(this.Alice).withdrawNFTAfterDefractionalizing(this.tokenIds[3]))
       .to.revertedWith("DibbsERC1155: caller is not defractionalizer or tokend id is not the defractionalized one or already withdrew.")
   })
+
+  //=====================================  Shotgun auction  ====================================== 
+  it("Starting Shotgun auction fails", async () => {
+    const amount = ethers.BigNumber.from("6000000000000000")
+    await expect(this.shotgun.connect(this.Alice).startAuction(
+      this.tokenIds[1],
+      amount,
+      {value: 0}
+    )).to.revertedWith("Shotgun: insufficient funds")
+  })
+
+  it("Starting Shotgun auction fails", async () => {
+    const amount = ethers.BigNumber.from("6000000000000001")
+    await expect(this.shotgun.connect(this.Alice).startAuction(
+      this.tokenIds[1],
+      amount,
+      {value: this.starterBalance}
+    )).to.revertedWith("Shotgun: insufficient amount of fractions")
+  })
+
+  it("Starting Shotgun auction fails", async () => {
+    const amount = ethers.BigNumber.from("4000000000000000")
+    await expect(this.shotgun.connect(this.Alice).startAuction(
+      this.tokenIds[1],
+      amount,
+      {value: this.starterBalance}
+    )).to.revertedWith("Shotgun: should be grater than or equal to the half of fraction amount")
+  })
+
+  it("Starting Shotgun auction succeeds", async () => {
+    const amount = ethers.BigNumber.from("6000000000000000")
+    this.dibbsERC1155.connect(this.Alice).setApprovalForAll(this.shotgun.address, true)
+    await expect(this.shotgun.connect(this.Alice).startAuction(
+      this.tokenIds[1],
+      amount,
+      {value: this.starterBalance}
+    )).emit(this.shotgun, "AuctionStarted")
+      .withArgs(0, this.tokenIds[1], amount)
+  })
+
+  it("Purchasing locked fractions fails", async () => {
+    await expect(this.shotgun.connect(this.Carl).purchase(0, {value: this.additionalBalance}))
+      .to.revertedWith( "Shotgun: insufficient funds.")
+  })
+
+  it("Purchasing locked fractions succeeds", async () => {
+    await expect(this.shotgun.connect(this.Carl).purchase(0, {value: this.buyerBalance}))
+      .emit(this.shotgun, "Purchased")
+      .withArgs(this.Carl.address, this.buyerBalance)
+  })
+
+  it("Claiming locked ethers after purchaing fails", async () => {
+    await expect(this.shotgun.connect(this.Carl).claimEtherAfterFinishing(0))
+      .to.revertedWith("Shotgun: only starter can redeem the locked ETH")
+  })
+
+  it("Claiming locked ethers after purchaing succeeds", async () => {
+    await expect(this.shotgun.connect(this.Alice).claimEtherAfterFinishing(0))
+      .emit(this.shotgun, "StarterClaimed")
+      .withArgs(this.Alice.address, this.buyerBalance)
+  })
+
+  it("Starting Shotgun auction succeeds", async () => {
+    const amount = ethers.BigNumber.from("6000000000000000")
+    this.dibbsERC1155.connect(this.Alice).setApprovalForAll(this.shotgun.address, true)
+    await expect(this.shotgun.connect(this.Alice).startAuction(
+      this.tokenIds[2],
+      amount,
+      {value: this.starterBalance}
+    )).emit(this.shotgun, "AuctionStarted")
+      .withArgs(1, this.tokenIds[2], amount)
+  })
+
+  it("Pass 1 minute", async () => {
+    await advanceTime(60);
+  })
+
+  it("Claiming locked ethers after purchaing fails", async () => {
+    await expect(this.shotgun.connect(this.Alice).claimEtherAfterFinishing(1))
+      .to.revertedWith("Shotgun: is not over.")
+  })
+  
+  it("Bob: Sending fracions and redeeming proportional ETHs succeeds", async () => {
+    const amount = ethers.BigNumber.from("2000000000000000")
+    this.dibbsERC1155.connect(this.Bob).setApprovalForAll(this.shotgun.address, true)
+    await expect(this.shotgun.connect(this.Bob).sendAndRedeemProportion(1))
+      .emit(this.shotgun, "OwnerSentAndRedeemed")
+      .withArgs(this.Bob.address, amount, this.buyerBalance2)
+  })
+
+  it("Carl: Sending fracions and redeeming proportional ETHs succeeds", async () => {
+    const amount = ethers.BigNumber.from("2000000000000000")
+    this.dibbsERC1155.connect(this.Carl).setApprovalForAll(this.shotgun.address, true)
+    await expect(this.shotgun.connect(this.Carl).sendAndRedeemProportion(1))
+      .emit(this.shotgun, "OwnerSentAndRedeemed")
+      .withArgs(this.Carl.address, amount, this.buyerBalance2)
+  })
+
+  it("Alice(starter): withdrawing the NFT succeeds", async () => {
+    await expect(this.shotgun.connect(this.Alice).withdrawNFT(1))
+      .emit(this.shotgun, "NftWithdrawn")
+      .withArgs(1, this.Alice.address, this.tokenIds[2])
+  })
+
+
 })

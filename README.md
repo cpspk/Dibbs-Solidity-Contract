@@ -13,13 +13,31 @@ This project is to build smart contracts for Dibbs marketplace using Solidity. I
 - burnFractions: burn fractions with id after defractionalizing.
 
 ## ShotgunAuction(5)
-- setTokenId: set new token id for new Shotgun auction.
-- registerFractionOwners: register fraction owner who will participate in the auction.
-- registerShotgunStarter: User sends at least 0.5*token_supply tokens(fractions) to the smart contract it gets stored as balance, and sends Ethers to the smart contract, it gets stored as balance. The tokens(fractions) are locked.
-- startAuction: Dibbs admin start Shotgun auction after receiving amount of fractions and Ethers.
-- claminProportion: after Shotgun auction terminated(the case which another user purchases), the other owners of the token(fractions) can claim their proportional share of the balance which the auction starter sent depending on the tokens they had before.
-- Initialize: initialize all state variables for new auction.
-- withdrawTo: withdraw ethers locked in the contract.
+``` Shotgun logic
+- 1 NFT
+- -> gets fractionalized
+- 1.0000000 tokens
+- send 0.6 to userA
+- send 0.1 to userB
+- send 0.3 to userC
+
+
+- userA wants the full asset, and will bid 5 eth
+- userA sends his tokens (0.6) + `5 / 10 * 4` (2 eth) to the smart contract
+- userA's tokens + userA's eth are locked up for 3 months
+
+during those 3 months, this can happen to stop the shotgun:
+- any user can come in, and buy userA's tokens at the valuation they offered
+- userX sends 3 eth to the smart contract taking up that offer
+	- userA will receive 3 eth
+	- userX will receive the 0.6 tokens
+	- the shotgun will be finished
+
+if 3 month pass:
+- the fractions can no longer be transferred
+- userB and userC can redeem their 0.1 and 0.3 for their fraction of the 2 eth that userA put up
+- userA gets the nft
+```
 
 Try running some of the following tasks:
 

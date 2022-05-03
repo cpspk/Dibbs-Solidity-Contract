@@ -10,6 +10,7 @@ import "hardhat/console.sol";
 
 import "../interfaces/IDibbsERC721Upgradeable.sol";
 import "../interfaces/IDibbsERC1155.sol";
+import "../interfaces/IShotgun.sol";
 
 contract DibbsERC721Upgradeable is
     IDibbsERC721Upgradeable,
@@ -44,6 +45,8 @@ contract DibbsERC721Upgradeable is
 
     ///@dev IDibbsERC1155 instance
     IDibbsERC1155 public dibbsERC1155;
+
+    IShotgun public shotgun;
 
     ///@dev change master minter event
     event DibbsAdminChanged(address prevAdmin, address newAdmin);
@@ -166,9 +169,13 @@ contract DibbsERC721Upgradeable is
         dibbsERC1155 = IDibbsERC1155(addr);
     }
 
+    function setShotgunAddr(address addr) external override {
+        shotgun = IShotgun(addr);
+    }
+
     function withdraw(address to, uint256 tokenId) external override {
-      require(msg.sender == address(dibbsERC1155), "DibbsERC721Upgradeable: caller is not dibbsERC1155 contract");
-      _transfer(address(this), to, tokenId);
+        require(msg.sender == address(dibbsERC1155) || msg.sender == address(shotgun), "DibbsERC721Upgradeable: caller is not DibbsERC1155 or Shotgun contract");
+        _transfer(address(this), to, tokenId);
     }
 
     /**

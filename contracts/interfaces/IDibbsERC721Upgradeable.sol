@@ -46,6 +46,8 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
 
     function setDibbsERC1155Addr(address addr) external;
 
+    function setShotgunAddr(address addr) external;
+
     /**
      * @dev burn nft: delete card info corresponding to tokenId
      * @param tokenId burned id
