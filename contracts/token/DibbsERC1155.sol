@@ -103,7 +103,7 @@ contract DibbsERC1155 is
         require(!dibbsERC721Upgradeable.getFractionStatus(_tokenId), "DibbsERC1155: this token is already fractionalized");
         require(dibbsERC721Upgradeable.isTokenLocked(_tokenId), "DibbsERC1155: this token is not locked in contract");
 
-        dibbsERC721Upgradeable.setCardFractionalized(_tokenId);
+        dibbsERC721Upgradeable.setCardFractionalized(_tokenId, true);
 
         _mint(to, _tokenId, FRACTION_AMOUNT, EMPTY);
         _setTokenURI(_tokenId);

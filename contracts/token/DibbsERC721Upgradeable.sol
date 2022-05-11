@@ -87,9 +87,10 @@ contract DibbsERC721Upgradeable is
     /**
      * @dev (To be called externally) setter function: set true when card is fractionalized
      * @param id the token id
+     * @param status shows that it is fractionalized or not
      */
-    function setCardFractionalized(uint256 id) external override onlyValidToken(id) {
-        cards[id].fractionalized = true;
+    function setCardFractionalized(uint256 id, bool status) external override onlyValidToken(id) {
+        cards[id].fractionalized = status;
     }
 
     function isTokenLocked(uint256 id) external view override onlyValidToken(id) returns (bool) {

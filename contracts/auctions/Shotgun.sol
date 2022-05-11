@@ -44,6 +44,8 @@ contract Shotgun is
 
     mapping(uint256 => AuctionInfo) auctionInfos;
 
+    mapping(uint256 => uint256) auctionIDs;
+
     address public dibbsAdmin;
 
     /// @dev current shotgun status
@@ -54,15 +56,13 @@ contract Shotgun is
 
     IDibbsERC721Upgradeable public nftAddr;
 
-    uint256 auctionID;
-
     /// @dev constants
     uint256 public constant HALF_OF_FRACTION_AMOUNT = 5000000000000000;
 
     uint256 public constant TOTAL_FRACTION_AMOUNT = 10000000000000000;
 
     /// @dev auction duration : 3 months
-    uint256 public constant AUCTION_DURATION = 1800;//30 mins for test
+    uint256 public AUCTION_DURATION = 1800;//30 mins for test
 
     event AuctionStarted(uint256 auctionId, uint256 tokenId, uint256 amountLocked);
 
@@ -82,6 +82,14 @@ contract Shotgun is
     ) {
         nftAddr = _nftAddr;
         fractionAddr = _fractionAddr;
+    }
+
+    function getAuctionIDbyTokenID(uint256 _tokenID)
+        public
+        view
+        returns (uint256)
+    {
+        return auctionIDs[_tokenID];
     }
 
     /// @dev check if auction is expired or not
@@ -108,6 +116,14 @@ contract Shotgun is
         );
     }
 
+    function changeAuction_Duration(uint256 newDuration)
+        external
+        virtual
+        onlyOwner
+    {
+        AUCTION_DURATION = newDuration;
+    }
+
     function getPrice(uint256 _amount, uint256 id) public view returns (uint256) {
         uint256 remainings = TOTAL_FRACTION_AMOUNT - auctionInfos[id].fractions;
         uint256 ethers = _amount.mul(auctionInfos[id].ethers).div(remainings);
@@ -128,6 +144,8 @@ contract Shotgun is
             "Shotgun: should be grater than or equal to the half of fraction amount"
         );
 
+        auctionIDs[_tokenId] = id;
+
         auctionInfos[id].startedAt = block.timestamp;
         auctionInfos[id].tokenId = _tokenId;
         auctionInfos[id].starter = msg.sender;
@@ -147,6 +165,11 @@ contract Shotgun is
         require(!isAuctionExpired(id), "Shotgun: already expired");
         uint256 price = getPrice(auctionInfos[id].fractions, id);
         require(msg.value >= price, "Shotgun: insufficient funds.");
+        
+        if (msg.value > price) {
+            (bool success, ) = payable(msg.sender).call{value: msg.value - price}("");
+            require(success);
+        }
 
         fractionAddr.safeTransferFrom(address(this), msg.sender, auctionInfos[id].tokenId, auctionInfos[id].fractions, '');
         auctionInfos[id].status = ShotgunStatus.OVER;
@@ -163,7 +186,7 @@ contract Shotgun is
         );
         require(msg.sender == auctionInfos[id].starter, "Shotgun: only starter can redeem the locked ETH");
 
-        (bool success, ) = payable(msg.sender).call{value: auctionInfos[id].restEthers}("");
+        (bool success, ) = payable(msg.sender).call{value: auctionInfos[id].restEthers + auctionInfos[id].ethers}("");
         require(success, "Shotgun: redeeming is not successful.");
 
         auctionInfos[id].status = ShotgunStatus.FREE;
@@ -187,6 +210,8 @@ contract Shotgun is
         require(success, "Shotgun: redeeming is not successful.");
 
         if (fractionAddr.balanceOf(address(this), tokenId) == TOTAL_FRACTION_AMOUNT) {
+            fractionAddr.defractionalize(tokenId);
+            nftAddr.setCardFractionalized(tokenId, false);
             auctionInfos[id].status = ShotgunStatus.FREE;
         }
 
@@ -197,10 +222,13 @@ contract Shotgun is
         uint256 tokenId = auctionInfos[id].tokenId;
         address recipient = auctionInfos[id].starter;
         require(msg.sender == auctionInfos[id].starter, "Shotgun: only starter can withdraw the NFT");
-        require(fractionAddr.balanceOf(address(this), tokenId) == TOTAL_FRACTION_AMOUNT, "Shotgun: insufficient fractions");
+        require(
+            isAuctionExpired(id) && auctionInfos[id].status == ShotgunStatus.ONGOING,
+            "Shotgun: is not expired yet."
+        );
 
         nftAddr.withdraw(recipient, tokenId);
-
+        
         emit NftWithdrawn(id, recipient, tokenId);
     }
 }

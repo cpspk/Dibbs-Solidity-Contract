@@ -8,7 +8,7 @@ interface IDibbsERC721Upgradeable is IERC721Upgradeable {
      * @dev (To be called externally) setter function: set true when card is fractionalized
      * @param id the token id
      */
-    function setCardFractionalized(uint256 id) external;
+    function setCardFractionalized(uint256 id, bool status) external;
 
     ///@dev get (true or false) whether a token with id exists or not.
     // function getExistence(uint256 id) external returns (bool);

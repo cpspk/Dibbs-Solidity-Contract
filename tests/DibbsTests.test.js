@@ -40,7 +40,7 @@ describe("DibbsTests", function() {
   })
   
   it("Setting card fractionalized fails: should fractionalize only existing token", async () => {
-    await expect(this.dibbsERC721Upgradeable.connect(this.dibbsAdmin).setCardFractionalized(this.tokenIds[0]))
+    await expect(this.dibbsERC721Upgradeable.connect(this.dibbsAdmin).setCardFractionalized(this.tokenIds[0], true))
     .to.revertedWith("DibbsERC721Upgradeable: invalid card token id")
   })
   
@@ -367,9 +367,15 @@ describe("DibbsTests", function() {
   })
 
   it("Pass 1 minute", async () => {
-    await advanceTime(60);
+    await advanceTime(1800);
   })
-
+  
+  it("Alice(starter): withdrawing the NFT succeeds", async () => {
+    await expect(this.shotgun.connect(this.Alice).withdrawNFT(1))
+      .emit(this.shotgun, "NftWithdrawn")
+      .withArgs(1, this.Alice.address, this.tokenIds[2])
+  })
+  
   it("Claiming locked ethers after purchaing fails", async () => {
     await expect(this.shotgun.connect(this.Alice).claimEtherAfterFinishing(1))
       .to.revertedWith("Shotgun: is not over.")
@@ -390,12 +396,4 @@ describe("DibbsTests", function() {
       .emit(this.shotgun, "OwnerSentAndRedeemed")
       .withArgs(this.Carl.address, amount, this.buyerBalance2)
   })
-
-  it("Alice(starter): withdrawing the NFT succeeds", async () => {
-    await expect(this.shotgun.connect(this.Alice).withdrawNFT(1))
-      .emit(this.shotgun, "NftWithdrawn")
-      .withArgs(1, this.Alice.address, this.tokenIds[2])
-  })
-
-
 })
