@@ -84,6 +84,9 @@ contract Shotgun is
         fractionAddr = _fractionAddr;
     }
 
+    fallback() external payable {}
+    receive() external payable {}
+
     function getAuctionIDbyTokenID(uint256 _tokenID)
         public
         view
