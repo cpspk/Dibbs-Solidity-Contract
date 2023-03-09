@@ -1,0 +1,7 @@
+- Deploy the contracts on emulaotr.
+- Create a new account for emulaotr-alice.
+- Then run the command below.
+
+flow transactions send cadence/transactions/cardItems/setup_account.cdc "2010 Bowman Draft Picks Manny Machado ROOKIE RC #BDPP80 PSA 10 GEM MINT" --signer emulator-alice
+
+flow transactions send cadence/transactions/cardItems/mint_card_item.cdc 0x01cf0e2f2f715450 "2010 Bowman Draft Picks Manny Machado ROOKIE RC #BDPP80 PSA 10 GEM MINT" "PSA 10" 22129333 "Qmec8XfVmibXTYhGMn9qst6sySmcDeQk8S9p4RVX9tTPzt"

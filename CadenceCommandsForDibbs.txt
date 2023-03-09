@@ -1,0 +1,69 @@
+name: 2010 Bowman Draft Picks Manny Machado ROOKIE RC #BDPP80 PSA 10 GEM MINT
+grade: PSA 10
+serial: 22129333
+image: Qmec8XfVmibXTYhGMn9qst6sySmcDeQk8S9p4RVX9tTPzt
+name: 2010 Bowman Draft Picks Manny Machado ROOKIE RC #BDPP80 PSA 10 GEM MINT
+grade: PSA 10
+serial: 28474567
+image: QmY2oVKU6GfvyfnQJjybAhSiqnhZroG63oNkACAfp8LyZr
+name: 2020 Panini Prizm WNBA Purple Sabrina Ionescu ROOKIE RC /125 #89 PSA 9 MINT
+grade: PSA 9
+serial: 52961680
+image: QmbNSz7Bh1xS83HoMEgpzBsYFoVDSsdztYyAK12KYnQCKW
+name: 2017 Donruss Football Patrick Mahomes II ROOKIE RC #327 PSA 10 GEM MINT
+grade: PSA 10
+serial: 49277141
+image: QmTpX3jXyf9dLGGu4AhjcaB3KexJfG6kk49PPkFuUZNbi1
+name: 2019 Topps Chrome Bundesliga Erling Haaland ROOKIE RC #72 PSA 10 GEM MINT
+grade: PSA 10
+serial: 49818702
+image: QmWr6mNCCFquHMsMy69qXxzRUGxxr3W9rW2fQshTzM6We1
+
+
+      "alice": 01cf0e2f2f715450
+      "bob": 179b6b1cb6755e31
+      "carl": f3fcd2c1a78f5eee
+
+=====================Commands===========================
+flow emulator --block-time 1s
+flow deploy
+
+-------Flow-------------
+flow transactions send .\transactions\flowToken\mint_tokens.cdc 01cf0e2f2f715450 1000.0
+flow scripts execute .\scripts\flow\get_balance.cdc
+
+-------CardItem---------
+flow transactions send .\transactions\cardItems\setup_account.cdc
+flow transactions send .\transactions\cardItems\mint_card_item.cdc 01cf0e2f2f715450 '2010 Bowman Draft Picks Manny Machado ROOKIE RC #BDPP80 PSA 10 GEM MINT' 'PSA 10' '22129333' 'Qmec8XfVmibXTYhGMn9qst6sySmcDeQk8S9p4RVX9tTPzt'
+flow transactions send .\transactions\cardItems\lock_card_item.cdc 0 --signer alice
+
+-------Fractionalize-------
+flow transactions send .\transactions\fractionToken\setup_account.cdc 0 --signer alice
+flow transactions send .\transactions\fractionToken\fractionalize.cdc 01cf0e2f2f715450 0
+flow scripts execute .\scripts\fractionToken\get_balance.cdc 01cf0e2f2f715450 0
+flow transactions send .\transactions\fractionToken\transfer_fraction_tokens.cdc 179b6b1cb6755e31 3000000000000000 0 --signer alice
+flow transactions send .\transactions\fractionToken\transfer_fraction_tokens.cdc f3fcd2c1a78f5eee 1000000000000000 0 --signer alice
+
+-------Shotgun------------
+flow transactions send .\transactions\shotgun\setup_account.cdc --signer alice
+flow transactions send .\transactions\shotgun\start_auction.cdc 0 3000000000000000 70.0 --signer alice(Fail)
+flow transactions send .\transactions\shotgun\start_auction.cdc 0 6000000000000000 40.0 --signer alice(Succeed)
+
+**if not expired
+flow transactions send .\transactions\shotgun\purchase.cdc 0 60.0 0x1cf0e2f2f715450 --signer bob
+flow transactions send .\transactions\shotgun\claim_After_Finishing.cdc 0 -- signer alice
+
+**if expired
+flow transactions send .\transactions\shotgun\withdraw_After_Expired.cdc 0 01cf0e2f2f715450
+flow transactions send .\transactions\shotgun\send_redeem.cdc 0 3000000000000000 0x1cf0e2f2f715450 --signer bob
+flow transactions send .\transactions\shotgun\send_redeem.cdc 0 1000000000000000 0x1cf0e2f2f715450 --signer carl
+
+flow scripts execute .\scripts\fractionToken\get_balance.cdc 01cf0e2f2f715450 0 (alice)
+flow scripts execute .\scripts\cardItems\get_card_item.cdc 01cf0e2f2f715450 0
+flow scripts execute .\scripts\cardItems\get_collection_ids.cdc 01cf0e2f2f715450
+
+flow transactions send .\transactions\shotgun\defractionalize.cdc 0 0x1cf0e2f2f715450
+flow scripts execute .\scripts\shotgun\get_shotgun_item.cdc 0x1cf0e2f2f715450 0
+
+
+

@@ -1,0 +1,12 @@
+git clone https://github.com/Uniswap/v3-core.git
+cd v3-core
+git branch -r
+git checkout origin/0.8
+cd ..
+git clone https://github.com/Uniswap/v3-periphery.git
+cd v3-periphery
+git branch -r
+git checkout origin/0.8
+cd ..
+ls -al
+then just copy whatever files you need into your solidity project from there
